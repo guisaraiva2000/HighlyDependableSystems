@@ -1,0 +1,17 @@
+//
+// Protocol buffers definition
+//
+syntax = "proto3";
+package pt.tecnico.bank.server.grpc;
+
+message PingRequest {
+  string input = 1;
+}
+
+message PingResponse {
+	string output = 1;
+}
+
+service ServerService {
+  rpc ping(PingRequest) returns (PingResponse);
+}
