@@ -1,36 +1,56 @@
 package pt.tecnico.bank.server.domain;
 
+import com.google.protobuf.ByteString;
+
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+
 public class User {
-    private final String user_name;
-    private final String name;
-    private final String phoneNumber;
+
+    private final ByteString pubKey;
+    private int balance;
+    private LinkedHashMap<ByteString, Integer> totalTransfers = new LinkedHashMap<>(); // transfer = (key, amount)
+    private HashMap<ByteString, Integer> pendingTransfers = new HashMap<>();
 
 
-    public User(String user_name, String name, String phoneNumber) {
-        this.user_name = user_name;
-        this.name = name;
-        this.phoneNumber = phoneNumber;
-
+    public User(ByteString pubKey, int balance) {
+        this.pubKey = pubKey;
+        this.balance = balance;
     }
 
-    String getUsername() {
-        return user_name;
+    public ByteString getPubKey() {
+        return pubKey;
     }
 
-    String getName() {
-        return name;
+    public int getBalance() {
+        return balance;
     }
 
-    String getPhoneNumber() {
-        return phoneNumber;
+    public void setBalance(int balance) {
+        this.balance = balance;
+    }
+
+    public LinkedHashMap<ByteString, Integer> getTotalTransfers() {
+        return totalTransfers;
+    }
+
+    public void setTotalTransfers(LinkedHashMap<ByteString, Integer> totalTransfers) {
+        this.totalTransfers = totalTransfers;
+    }
+
+    public HashMap<ByteString, Integer> getPendingTransfers() {
+        return pendingTransfers;
+    }
+
+    public void setPendingTransfers(HashMap<ByteString, Integer> pendingTransfers) {
+        this.pendingTransfers = pendingTransfers;
     }
 
     @Override
     public String toString() {
         return "User{" +
-                "user_name='" + user_name + '\'' +
-                ", name='" + name + '\'' +
-                ", phoneNumber='" + phoneNumber + '\'' +
+                "pubKey=" + pubKey +
+                ", balance=" + balance +
                 '}';
     }
 }

@@ -1,14 +1,14 @@
 package pt.tecnico.bank.server.domain.exception;
 
-public class NoDocksAvailableException extends Exception{
+public class AccountDoesNotExistsException extends Exception {
 
     private static final long serialVersionUID = 202104021434L;
 
-    public NoDocksAvailableException() {
+    public AccountDoesNotExistsException() {
     }
 
     @Override
     public String getMessage() {
-        return "ERROR: No docks available";
+        return "ERROR: Account already exists.";
     }
 }

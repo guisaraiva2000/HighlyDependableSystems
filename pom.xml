@@ -42,6 +42,7 @@
 		<module>server-contract</module>
 		<module>server</module>
 		<module>server-tester</module>
+		<module>client</module>
 	</modules>
 
 	<!-- Dependencies are code archives - JARs - on which your current module needs in order to compile, build, test, and/or to run. 

@@ -1,14 +1,13 @@
 package pt.tecnico.bank.server.domain.exception;
 
-public class NoDocksAvailablexception extends Exception{
-
+public class SameAccountException extends Exception {
     private static final long serialVersionUID = 202104021434L;
 
-    public NoDocksAvailablexception() {
+    public SameAccountException() {
     }
 
     @Override
     public String getMessage() {
-        return "ERROR: No docks available";
+        return "ERROR: Cannot send money to your own account.";
     }
 }
