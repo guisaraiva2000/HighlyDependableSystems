@@ -9,7 +9,7 @@ import static io.grpc.Status.INVALID_ARGUMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class PingHubIT {
+public class PingIT {
 
     private ServerFrontend frontend;
 

@@ -51,6 +51,8 @@ public class User {
         return "User{" +
                 "pubKey=" + pubKey +
                 ", balance=" + balance +
+                ", totalTransfers=" + totalTransfers +
+                ", pendingTransfers=" + pendingTransfers +
                 '}';
     }
 }

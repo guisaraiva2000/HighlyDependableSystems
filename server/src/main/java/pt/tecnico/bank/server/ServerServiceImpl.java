@@ -79,7 +79,14 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
 
     @Override
     public void receiveAmount(ReceiveAmountRequest request, StreamObserver<ReceiveAmountResponse> responseObserver) {
-        // TODO
+        try {
+            boolean res = server.receiveAmount(request.getPublicKey());
+            ReceiveAmountResponse response = ReceiveAmountResponse.newBuilder().setAck(res).build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (AccountDoesNotExistsException e) {
+            responseObserver.onError(UNAVAILABLE.withDescription(e.getMessage()).asRuntimeException());
+        }
     }
 
     @Override

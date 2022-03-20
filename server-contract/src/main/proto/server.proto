@@ -41,7 +41,7 @@ message CheckAccountResponse {
 }
 
 message ReceiveAmountRequest {
-  bytes source_key = 1;
+  bytes public_key = 1;
 }
 
 message ReceiveAmountResponse {

@@ -2,15 +2,11 @@ package pt.tecnico.bank.client;
 
 import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
-import pt.tecnico.bank.server.ServerFrontend;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 public class Client {
 
-    private final ServerFrontend frontend;
-
-    public Client(ServerFrontend frontend){
-        this.frontend = frontend;
+    public Client(){
     }
 
     void open_account(ByteString key, int amount){
@@ -45,7 +41,7 @@ public class Client {
 
     void receive_amount(ByteString key){
         try {
-            ReceiveAmountRequest r = ReceiveAmountRequest.newBuilder().setSourceKey(key).build();
+            ReceiveAmountRequest r = ReceiveAmountRequest.newBuilder().setPublicKey(key).build();
             System.out.println("Received from " + key);
         } catch (StatusRuntimeException e) {
             printError(e);

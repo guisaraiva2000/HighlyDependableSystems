@@ -19,13 +19,13 @@ public class ClientMain {
 
         try {
             frontend = new ServerFrontend();
-            client = new Client(frontend);
+            client = new Client();
         } catch (Exception e) {
             System.out.println("Caught exception with description: " + e.getMessage());
             return;
         }
 
-        ByteString publicKey = ByteString.copyFromUtf8("public"); //TODO create key pair here
+        ByteString publicKey = ByteString.copyFromUtf8("public"); //TODO create key pair here ???
 
         Scanner sin = new Scanner(System.in);
         String input;

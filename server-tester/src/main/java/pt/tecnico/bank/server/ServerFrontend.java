@@ -27,6 +27,31 @@ public class ServerFrontend implements Closeable {
         return stub.ping(PingRequest.newBuilder().setInput(request.getInput()).build());
     }
 
+    public OpenAccountResponse openAccount(OpenAccountRequest request) {
+        return stub.openAccount(OpenAccountRequest.newBuilder()
+                .setPublicKey(request.getPublicKey())
+                .setBalance(request.getBalance()).build());
+    }
+
+    public SendAmountResponse sendAmount(SendAmountRequest request) {
+        return stub.sendAmount(SendAmountRequest.newBuilder()
+                .setAmount(request.getAmount())
+                .setSourceKey(request.getSourceKey())
+                .setDestinationKey(request.getDestinationKey()).build());
+    }
+
+    public CheckAccountResponse checkAccount(CheckAccountRequest request) {
+        return stub.checkAccount(CheckAccountRequest.newBuilder().setPublicKey(request.getPublicKey()).build());
+    }
+
+    public ReceiveAmountResponse receiveAmount(ReceiveAmountRequest request) {
+        return stub.receiveAmount(ReceiveAmountRequest.newBuilder().setPublicKey(request.getPublicKey()).build());
+    }
+
+    public AuditResponse auditResponse(AuditRequest request) {
+        return stub.audit(AuditRequest.newBuilder().setPublicKey(request.getPublicKey()).build());
+    }
+
     @Override
     public final void close() {
         channel.shutdown();

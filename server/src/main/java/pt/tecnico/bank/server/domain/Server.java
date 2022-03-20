@@ -8,7 +8,6 @@ import pt.tecnico.bank.server.domain.exception.SameAccountException;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -51,6 +50,8 @@ public class Server {
         destUser.setPendingTransfers(destPendingTransfers);
         users.put(destinationKey, destUser);
 
+        System.out.println(users.get(destinationKey).toString());
+
         return true;
     }
 
@@ -68,7 +69,24 @@ public class Server {
         return new String[]{ String.valueOf(users.get(pubKey).getBalance()), pendingTransfersAsString };
     }
 
-    // TODO gui receive, tive de ir jantar
+    public synchronized boolean receiveAmount(ByteString pubKey) throws AccountDoesNotExistsException {
+        if (!(users.containsKey(pubKey)))
+            throw new AccountDoesNotExistsException();
+
+        User user = users.get(pubKey);
+        HashMap<ByteString, Integer> pendingTransfers = user.getPendingTransfers();
+
+        pendingTransfers.forEach((key, value) -> {
+            transferAmount(key, -value); // take from senders
+            transferAmount(pubKey, value); // transfer to receiver
+        });
+
+        pendingTransfers.clear();
+        user.setPendingTransfers(pendingTransfers); // clear the list
+        users.put(pubKey, user); // update user
+
+        return true;
+    }
 
     public synchronized String audit(ByteString pubKey) throws AccountDoesNotExistsException {
         if (!(users.containsKey(pubKey)))
@@ -82,9 +100,20 @@ public class Server {
         return "No transfers found.";
     }
 
+    // ------------------------------------ AUX -------------------------------------
+
+    private void transferAmount(ByteString pubKey, int amount) {
+        User user = users.get(pubKey);
+        LinkedHashMap<ByteString, Integer> totalTransfers = user.getTotalTransfers();
+        totalTransfers.put(pubKey, amount);
+        user.setTotalTransfers(totalTransfers);
+        user.setBalance(user.getBalance() + amount);
+        users.put(pubKey, user);
+    }
+
     private String mapToString(HashMap<ByteString, Integer> map) {
         return map.keySet().stream()
-                .map(key -> key + "=" + map.get(key))
+                .map(key -> key.toStringUtf8() + "= " + map.get(key))
                 .collect(Collectors.joining(", ", "{", "}"));
     }
 }
