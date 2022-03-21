@@ -77,8 +77,8 @@ public class Server {
         HashMap<ByteString, Integer> pendingTransfers = user.getPendingTransfers();
 
         pendingTransfers.forEach((key, value) -> {
-            transferAmount(key, -value); // take from senders
-            transferAmount(pubKey, value); // transfer to receiver
+            transferAmount(key, pubKey, -value); // take from senders
+            transferAmount(pubKey, key, value); // transfer to receiver
         });
 
         pendingTransfers.clear();
@@ -102,18 +102,18 @@ public class Server {
 
     // ------------------------------------ AUX -------------------------------------
 
-    private void transferAmount(ByteString pubKey, int amount) {
-        User user = users.get(pubKey);
+    private void transferAmount(ByteString senderKey, ByteString receiverKey, int amount) {
+        User user = users.get(senderKey);
         LinkedHashMap<ByteString, Integer> totalTransfers = user.getTotalTransfers();
-        totalTransfers.put(pubKey, amount);
+        totalTransfers.put(receiverKey, amount);
         user.setTotalTransfers(totalTransfers);
         user.setBalance(user.getBalance() + amount);
-        users.put(pubKey, user);
+        users.put(senderKey, user);
     }
 
     private String mapToString(HashMap<ByteString, Integer> map) {
         return map.keySet().stream()
-                .map(key -> key.toStringUtf8() + "= " + map.get(key))
+                .map(key -> key.toStringUtf8() + ": " + map.get(key))
                 .collect(Collectors.joining(", ", "{", "}"));
     }
 }

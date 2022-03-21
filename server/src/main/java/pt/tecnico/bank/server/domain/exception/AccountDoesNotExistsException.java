@@ -9,6 +9,6 @@ public class AccountDoesNotExistsException extends Exception {
 
     @Override
     public String getMessage() {
-        return "ERROR: Account already exists.";
+        return "ERROR: Account does not exist.";
     }
 }

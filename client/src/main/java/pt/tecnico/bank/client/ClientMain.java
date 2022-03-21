@@ -19,7 +19,7 @@ public class ClientMain {
 
         try {
             frontend = new ServerFrontend();
-            client = new Client();
+            client = new Client(frontend);
         } catch (Exception e) {
             System.out.println("Caught exception with description: " + e.getMessage());
             return;
@@ -45,10 +45,11 @@ public class ClientMain {
 
                 switch (tokens[0]) {
                     case "open":
-                        if (tokens.length == 2) {
-                            client.open_account(publicKey, Integer.parseInt(tokens[1]));
+                        if (tokens.length == 3) {
+                            publicKey = ByteString.copyFromUtf8(tokens[1]);
+                            client.open_account(ByteString.copyFromUtf8(tokens[1]), Integer.parseInt(tokens[2]));
                         } else {
-                            System.err.println("ERROR: Usage: open %amount%");
+                            System.err.println("ERROR: Usage: open %acc_name% %amount%");
                         }
                         break;
                     case "send":
