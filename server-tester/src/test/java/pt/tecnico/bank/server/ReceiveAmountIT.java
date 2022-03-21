@@ -48,7 +48,7 @@ public class ReceiveAmountIT {
         CheckAccountRequest careq = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("987654321")).build();
         CheckAccountResponse cares = frontend.checkAccount(careq);
         assertEquals(20, cares.getBalance());
-        assertEquals("{}", cares.getPendentTransfers());
+        assertEquals("", cares.getPendentTransfers());
 
         CheckAccountRequest careq2 = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("123456789")).build();
         CheckAccountResponse cares2 = frontend.checkAccount(careq2);

@@ -2,15 +2,14 @@ package pt.tecnico.bank.server.domain;
 
 import com.google.protobuf.ByteString;
 
-import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.LinkedList;
 
 public class User {
 
     private final ByteString pubKey;
     private int balance;
-    private LinkedHashMap<ByteString, Integer> totalTransfers = new LinkedHashMap<>(); // transfer = (key, amount)
-    private HashMap<ByteString, Integer> pendingTransfers = new HashMap<>();
+    private LinkedList<Transfer> totalTransfers = new LinkedList<>(); // transfer = (key, amount)
+    private LinkedList<Transfer> pendingTransfers = new LinkedList<>();
 
 
     public User(ByteString pubKey, int balance) {
@@ -30,19 +29,19 @@ public class User {
         this.balance = balance;
     }
 
-    public LinkedHashMap<ByteString, Integer> getTotalTransfers() {
+    public LinkedList<Transfer> getTotalTransfers() {
         return totalTransfers;
     }
 
-    public void setTotalTransfers(LinkedHashMap<ByteString, Integer> totalTransfers) {
+    public void setTotalTransfers(LinkedList<Transfer> totalTransfers) {
         this.totalTransfers = totalTransfers;
     }
 
-    public HashMap<ByteString, Integer> getPendingTransfers() {
+    public LinkedList<Transfer> getPendingTransfers() {
         return pendingTransfers;
     }
 
-    public void setPendingTransfers(HashMap<ByteString, Integer> pendingTransfers) {
+    public void setPendingTransfers(LinkedList<Transfer> pendingTransfers) {
         this.pendingTransfers = pendingTransfers;
     }
 

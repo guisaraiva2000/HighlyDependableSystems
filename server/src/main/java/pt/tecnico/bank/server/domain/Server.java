@@ -6,8 +6,8 @@ import pt.tecnico.bank.server.domain.exception.AccountDoesNotExistsException;
 import pt.tecnico.bank.server.domain.exception.NotEnoughBalanceException;
 import pt.tecnico.bank.server.domain.exception.SameAccountException;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.stream.Collectors;
 
 /**
@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
  */
 public class Server {
 
-    private LinkedHashMap<ByteString, User> users = new LinkedHashMap<>();
+    private final LinkedHashMap<ByteString, User> users = new LinkedHashMap<>();
 
     public Server() {}
 
@@ -45,8 +45,8 @@ public class Server {
         // TODO check if it was the source user that made the transfer ?????
 
         User destUser = users.get(destinationKey);
-        HashMap<ByteString, Integer> destPendingTransfers = destUser.getPendingTransfers();
-        destPendingTransfers.put(sourceKey, amount); // added to the dest pending transfers list
+        LinkedList<Transfer> destPendingTransfers = destUser.getPendingTransfers();
+        destPendingTransfers.add(new Transfer(sourceKey, amount)); // added to the dest pending transfers list
         destUser.setPendingTransfers(destPendingTransfers);
         users.put(destinationKey, destUser);
 
@@ -60,10 +60,10 @@ public class Server {
             throw new AccountDoesNotExistsException();
 
         String pendingTransfersAsString = null;
-        HashMap<ByteString, Integer> pendingTransfers = users.get(pubKey).getPendingTransfers();
+        LinkedList<Transfer> pendingTransfers = users.get(pubKey).getPendingTransfers();
 
         if (pendingTransfers != null) {
-            pendingTransfersAsString = mapToString(pendingTransfers);
+            pendingTransfersAsString = getTransfersAsString(pendingTransfers);
         }
 
         return new String[]{ String.valueOf(users.get(pubKey).getBalance()), pendingTransfersAsString };
@@ -74,11 +74,11 @@ public class Server {
             throw new AccountDoesNotExistsException();
 
         User user = users.get(pubKey);
-        HashMap<ByteString, Integer> pendingTransfers = user.getPendingTransfers();
+        LinkedList<Transfer> pendingTransfers = user.getPendingTransfers();
 
-        pendingTransfers.forEach((key, value) -> {
-            transferAmount(key, pubKey, -value); // take from senders
-            transferAmount(pubKey, key, value); // transfer to receiver
+        pendingTransfers.forEach(transfer -> {
+            transferAmount(transfer.getDestination(), pubKey, -transfer.getAmount()); // take from senders
+            transferAmount(pubKey, transfer.getDestination(), transfer.getAmount()); // transfer to receiver
         });
 
         pendingTransfers.clear();
@@ -92,10 +92,10 @@ public class Server {
         if (!(users.containsKey(pubKey)))
             throw new AccountDoesNotExistsException();
 
-        LinkedHashMap<ByteString, Integer> totalTransfers = users.get(pubKey).getTotalTransfers();
+        LinkedList<Transfer> totalTransfers = users.get(pubKey).getTotalTransfers();
 
         if (totalTransfers != null)
-            return mapToString(totalTransfers);
+            return getTransfersAsString(totalTransfers);
 
         return "No transfers found.";
     }
@@ -104,16 +104,14 @@ public class Server {
 
     private void transferAmount(ByteString senderKey, ByteString receiverKey, int amount) {
         User user = users.get(senderKey);
-        LinkedHashMap<ByteString, Integer> totalTransfers = user.getTotalTransfers();
-        totalTransfers.put(receiverKey, amount);
+        LinkedList<Transfer> totalTransfers = user.getTotalTransfers();
+        totalTransfers.add(new Transfer(receiverKey, amount));
         user.setTotalTransfers(totalTransfers);
         user.setBalance(user.getBalance() + amount);
         users.put(senderKey, user);
     }
 
-    private String mapToString(HashMap<ByteString, Integer> map) {
-        return map.keySet().stream()
-                .map(key -> key.toStringUtf8() + ": " + map.get(key))
-                .collect(Collectors.joining(", ", "{", "}"));
+    private String getTransfersAsString(LinkedList<Transfer> pendingTransfers) {
+        return pendingTransfers.stream().map(Transfer::toString).collect(Collectors.joining());
     }
 }

@@ -25,7 +25,7 @@ public class AuditIT {
     }
 
     @Test
-    public void ReceiveAmountOKTest() {
+    public void AuditOKTest() {
         OpenAccountRequest oareq = OpenAccountRequest.newBuilder()
                 .setPublicKey(ByteString.copyFromUtf8("12345678"))
                 .setBalance(100).build();
@@ -49,8 +49,8 @@ public class AuditIT {
         AuditRequest req2 = AuditRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("87654321")).build();
         AuditResponse res2 = frontend.auditResponse(req2);
 
-        assertEquals("{87654321: -20}", res.getTransferHistory());
-        assertEquals("{12345678: 20}", res2.getTransferHistory());
+        assertEquals("{destination=87654321, amount=-20}", res.getTransferHistory());
+        assertEquals("{destination=12345678, amount=20}", res2.getTransferHistory());
 
     }
 

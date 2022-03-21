@@ -44,7 +44,7 @@ public class CheckAccountIT {
         CheckAccountRequest req = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("7654321")).build();
         CheckAccountResponse res = frontend.checkAccount(req);
         assertEquals(0, res.getBalance());
-        assertEquals("{1234567: 20}", res.getPendentTransfers());
+        assertEquals("{destination=1234567, amount=20}", res.getPendentTransfers());
     }
 
    /* @Test
