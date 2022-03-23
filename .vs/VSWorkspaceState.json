@@ -1,0 +1,23 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\client",
+    "\\client\\src",
+    "\\client\\src\\main",
+    "\\client\\src\\main\\java",
+    "\\client\\src\\main\\java\\pt",
+    "\\client\\src\\main\\java\\pt\\tecnico",
+    "\\client\\src\\main\\java\\pt\\tecnico\\bank",
+    "\\client\\src\\main\\java\\pt\\tecnico\\bank\\client",
+    "\\server",
+    "\\server\\src",
+    "\\server\\src\\main",
+    "\\server\\src\\main\\java",
+    "\\server\\src\\main\\java\\pt",
+    "\\server\\src\\main\\java\\pt\\tecnico",
+    "\\server\\src\\main\\java\\pt\\tecnico\\bank",
+    "\\server\\src\\main\\java\\pt\\tecnico\\bank\\server"
+  ],
+  "SelectedNode": "\\client\\src\\main\\java\\pt\\tecnico\\bank\\client\\ClientMain.java",
+  "PreviewInSolutionExplorer": false
+}

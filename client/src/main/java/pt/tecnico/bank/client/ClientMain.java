@@ -49,8 +49,8 @@ public class ClientMain {
                     case "open":
                         if (tokens.length == 3 && !opened) {
                             opened = true; // TODO just for testing, delete after we got the keys
-                            publicKey = ByteString.copyFromUtf8(tokens[1]);
-                            client.open_account(ByteString.copyFromUtf8(tokens[1]), Integer.parseInt(tokens[2]));
+                            //publicKey = ByteString.copyFromUtf8(tokens[1]);
+                            client.open_account(Integer.parseInt(tokens[2]));
                         } else {
                             System.err.println("ERROR: Usage: open %acc_name% %amount%");
                         }
