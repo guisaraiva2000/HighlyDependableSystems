@@ -6,6 +6,7 @@ import pt.tecnico.bank.server.ServerFrontend;
 import pt.tecnico.bank.server.grpc.Server.*;
 import java.security.*;
 import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.security.spec.*;
 import java.io.FileOutputStream;
 import java.io.FileInputStream;
@@ -38,14 +39,37 @@ public class Client {
             Key pubKey = rsaKeyPair.getPublic();
             Key privKey = rsaKeyPair.getPrivate();
 
-            Certificate[] certChain = new Certificate[2];
-            //certChain[0] = clientCert;
+            KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
+            ks.load(null, password.toCharArray());
 
-            KeyStore ks = KeyStore.getInstance("RSA");
-            ks.setKeyEntry("client", privKey, password.toCharArray(), certChain);
-            OutputStream writeStream = new FileOutputStream(CLIENT_PATH);
-            ks.store(writeStream, password.toCharArray());
-            writeStream.close();
+            /*X509Certificate[] certChain = new X509Certificate[2];
+            certChain[0] = clientCert;
+            certChain[1] = caCert;*/
+            
+            X509Certificate[] serverChain = new X509Certificate[1];
+            X509V3CertificateGenerator serverCertGen = new X509V3CertificateGenerator();
+            X500Principal serverSubjectName = new X500Principal("CN=OrganizationName");
+            serverCertGen.setSerialNumber(new BigInteger("123456789"));
+            // X509Certificate caCert=null;
+            serverCertGen.setIssuerDN(somename);
+            serverCertGen.setNotBefore(new Date());
+            serverCertGen.setNotAfter(new Date());
+            serverCertGen.setSubjectDN(somename);
+            serverCertGen.setPublicKey(serverPublicKey);
+            serverCertGen.setSignatureAlgorithm("MD5WithRSA");
+            // certGen.addExtension(X509Extensions.AuthorityKeyIdentifier, false,new
+            // AuthorityKeyIdentifierStructure(caCert));
+            serverCertGen.addExtension(X509Extensions.SubjectKeyIdentifier, false,
+                new SubjectKeyIdentifierStructure(serverPublicKey));
+            serverChain[0] = serverCertGen.generateX509Certificate(serverPrivateKey, "BC"); // note: private key of CA
+
+
+
+            ks.setKeyEntry("sso-signing-key", privKey, password.toCharArray(), certChain);
+
+            try (FileOutputStream fos = new FileOutputStream(CLIENT_PATH + "\\keystore.txt")) {
+                ks.store(fos, password.toCharArray());
+            }
 
             OpenAccountRequest req = OpenAccountRequest.newBuilder()
                                                         .setPublicKey(ByteString.copyFrom(pubKey.getEncoded()))
@@ -56,7 +80,7 @@ public class Client {
         } catch (StatusRuntimeException e) {
             printError(e);
         } catch (Exception e){
-            System.out.println("Error while openning account");
+            e.printStackTrace();
         }
     }
 
@@ -131,26 +155,12 @@ public class Client {
         }
     }
 
-    private byte[] encrypt(String password, String message){
+    private byte[] encrypt(String message, String password){
         byte[] signature = null;
         try{
-            // GETTING THE PRIVATE KEY
-           /* File privateKeyFile = new File(CLIENT_PATH + "\\private.txt");
-            byte[] privateKeyBytes = Files.readAllBytes(privateKeyFile.toPath());
-
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            EncodedKeySpec privateKeySpec = new X509EncodedKeySpec(privateKeyBytes);
-            Key privKey = keyFactory.generatePrivate(privateKeySpec);*/
-
-           /* KeyStore ks = KeyStore.getInstance("RSA");
-            ks.load(new FileInputStream(pubKey), password.toCharArray());
-            PrivateKey privateKey = (PrivateKey) keyStore.getKey(KEY_STORE, "changeit");*/
-
-            KeyStore ks = KeyStore.getInstance("RSA");
-            InputStream readStream = new FileInputStream(CLIENT_PATH);
-            ks.load(readStream, password.toCharArray());
-            PrivateKey privKey = (PrivateKey) ks.getKey("client", password.toCharArray());
-            readStream.close();
+            KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
+            ks.load(new FileInputStream(CLIENT_PATH + "\\keystore.txt"), password.toCharArray());
+            PrivateKey privKey = (PrivateKey) ks.getKey("sso-signing-key", password.toCharArray());
 
             // SIGNATURE
             Signature sign = Signature.getInstance("SHA256withDSA");
