@@ -9,15 +9,13 @@ public class SendMoney {
     public ByteString destinationAccount;
     public float amount;
     public byte[] nonce;
-    public byte[] hash;
 
-    public SendMoney(ByteString originAccount, ByteString destinationAccount, float amount, byte[] nonce, byte[] hash)
+    public SendMoney(ByteString originAccount, ByteString destinationAccount, float amount, byte[] nonce)
     {
         this.originAccount = originAccount;
         this.destinationAccount = destinationAccount;
         this.amount = amount;
         this.nonce = nonce;
-        this.hash = hash;
     }
 
     public ByteString getOriginAccount()
@@ -33,16 +31,6 @@ public class SendMoney {
     public float getAmount()
     {
         return amount;
-    }
-
-    public byte[] getNonce()
-    {
-        return nonce;
-    }
-
-    public byte[] getHash()
-    {
-        return hash;
     }
 
 

@@ -31,6 +31,7 @@ public class Server {
 
     public synchronized boolean sendAmount(ByteString sourceKey, ByteString destinationKey, int amount)
             throws AccountDoesNotExistsException, SameAccountException, NotEnoughBalanceException {
+                System.out.println("Accounts: " + users);
         if (sourceKey == destinationKey) {
             throw new SameAccountException();
         } else if (!(users.containsKey(sourceKey) && users.containsKey(destinationKey))) {

@@ -49,17 +49,16 @@ public class ClientMain {
                     case "open":
                         if (tokens.length == 3 && !opened) {
                             opened = true; // TODO just for testing, delete after we got the keys
-                            publicKey = ByteString.copyFromUtf8(tokens[1]);
-                            client.open_account(Integer.parseInt(tokens[2]));
+                            client.open_account(Integer.parseInt(tokens[1]), tokens[2]);
                         } else {
-                            System.err.println("ERROR: Usage: open %acc_name% %amount%");
+                            System.err.println("ERROR: Usage: open %amount% %password%");
                         }
                         break;
                     case "send":
-                        if (tokens.length == 3) {
-                            client.send_amount(publicKey, ByteString.copyFromUtf8(tokens[1]), Integer.parseInt(tokens[2]));
+                        if (tokens.length == 5) {
+                            client.send_amount(ByteString.copyFromUtf8(tokens[1]), ByteString.copyFromUtf8(tokens[2]), Integer.parseInt(tokens[3]), tokens[4]);
                         } else {
-                            System.err.println("ERROR: Usage: send %dest_key% %amount%");
+                            System.err.println("ERROR: Usage: send %orig_key% %dest_key% %amount% %password%");
                         }
                         break;
                     case "check":

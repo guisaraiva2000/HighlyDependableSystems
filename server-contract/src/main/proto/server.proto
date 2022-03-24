@@ -25,6 +25,7 @@ message SendAmountRequest {
   bytes source_key = 1;
   bytes destination_key = 2;
   int32 amount = 3;
+  bytes signature = 4;
 }
 
 message SendAmountResponse {
