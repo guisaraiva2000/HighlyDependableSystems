@@ -49,7 +49,11 @@ public class ClientMain {
                     case "open":
                         if (tokens.length == 3 && !opened) {
                             opened = true; // TODO just for testing, delete after we got the keys
+                            try{
                             client.open_account(Integer.parseInt(tokens[1]), tokens[2]);
+                            } catch(Exception e){
+                                e.printStackTrace();
+                            }
                         } else {
                             System.err.println("ERROR: Usage: open %amount% %password%");
                         }

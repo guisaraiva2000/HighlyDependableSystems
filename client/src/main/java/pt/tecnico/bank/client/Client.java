@@ -8,15 +8,27 @@ import java.security.*;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.security.spec.*;
+import java.util.Calendar;
+import java.util.Date;
 import java.io.FileOutputStream;
 import java.io.FileInputStream;
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.io.InputStream;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.charset.StandardCharsets;
 import java.io.File;
 import javax.crypto.*;
+
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.BasicConstraints;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
 public class Client {
 
@@ -42,39 +54,24 @@ public class Client {
             KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
             ks.load(null, password.toCharArray());
 
-            /*X509Certificate[] certChain = new X509Certificate[2];
-            certChain[0] = clientCert;
-            certChain[1] = caCert;*/
-            
-            X509Certificate[] serverChain = new X509Certificate[1];
-            X509V3CertificateGenerator serverCertGen = new X509V3CertificateGenerator();
-            X500Principal serverSubjectName = new X500Principal("CN=OrganizationName");
-            serverCertGen.setSerialNumber(new BigInteger("123456789"));
-            // X509Certificate caCert=null;
-            serverCertGen.setIssuerDN(somename);
-            serverCertGen.setNotBefore(new Date());
-            serverCertGen.setNotAfter(new Date());
-            serverCertGen.setSubjectDN(somename);
-            serverCertGen.setPublicKey(serverPublicKey);
-            serverCertGen.setSignatureAlgorithm("MD5WithRSA");
-            // certGen.addExtension(X509Extensions.AuthorityKeyIdentifier, false,new
-            // AuthorityKeyIdentifierStructure(caCert));
-            serverCertGen.addExtension(X509Extensions.SubjectKeyIdentifier, false,
-                new SubjectKeyIdentifierStructure(serverPublicKey));
-            serverChain[0] = serverCertGen.generateX509Certificate(serverPrivateKey, "BC"); // note: private key of CA
-
-
-
-            ks.setKeyEntry("sso-signing-key", privKey, password.toCharArray(), certChain);
-
-            try (FileOutputStream fos = new FileOutputStream(CLIENT_PATH + "\\keystore.txt")) {
+            try (FileOutputStream fos = new FileOutputStream(CLIENT_PATH + "\\keystore.jks")) {
                 ks.store(fos, password.toCharArray());
             }
+
+            ks.load(new FileInputStream(CLIENT_PATH + "\\keystore.jks"), password.toCharArray());
+            X509Certificate[] certificateChain = new X509Certificate[1];
+            certificateChain[0] = selfSign(rsaKeyPair, "CN=sso-signing-key");
+ 
+            ks.setKeyEntry("sso-signing-key", privKey, password.toCharArray(), certificateChain);
+
+            System.out.println("BEFORE SENDING REQUEST");
 
             OpenAccountRequest req = OpenAccountRequest.newBuilder()
                                                         .setPublicKey(ByteString.copyFrom(pubKey.getEncoded()))
                                                         .setBalance(amount)
                                                         .build();
+                                                        
+            System.out.println("AFTER SENDING REQUEST");
             frontend.openAccount(req);
             System.out.println("Account with key " + pubKey + " created");
         } catch (StatusRuntimeException e) {
@@ -201,6 +198,39 @@ public class Client {
         }
 
         return decryptedMessage;
+    }
+
+    public static X509Certificate selfSign(KeyPair keyPair, String subjectDN)
+    {
+        X509Certificate certificate = null;
+        try{
+            Provider bcProvider = new BouncyCastleProvider();
+            Security.addProvider(bcProvider);
+
+            long now = System.currentTimeMillis();
+            Date startDate = new Date(now);
+
+            X500Name dnName = new X500Name(subjectDN);
+            BigInteger certSerialNumber = new BigInteger(Long.toString(now)); // <-- Using the current timestamp as the certificate serial number
+
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTime(startDate);
+            calendar.add(Calendar.YEAR, 1); // <-- 1 Yr validity
+
+            Date endDate = calendar.getTime();
+            String signatureAlgorithm = "SHA256WithRSA"; // <-- Use appropriate signature algorithm based on your keyPair algorithm.
+            ContentSigner contentSigner = new JcaContentSignerBuilder(signatureAlgorithm).build(keyPair.getPrivate());
+            JcaX509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(dnName, certSerialNumber, startDate, endDate, dnName, keyPair.getPublic());
+
+            // Basic Constraints
+            BasicConstraints basicConstraints = new BasicConstraints(true); // <-- true for CA, false for EndEntity
+            certBuilder.addExtension(new ASN1ObjectIdentifier("2.5.29.19"), true, basicConstraints); // Basic Constraints is usually marked as critical.
+            certificate = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certBuilder.build(contentSigner));
+        } catch (Exception e){
+            e.printStackTrace();
+        }
+
+        return certificate;
     }
 
 }
