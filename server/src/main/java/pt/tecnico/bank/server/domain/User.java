@@ -6,18 +6,18 @@ import java.util.LinkedList;
 
 public class User {
 
-    private final ByteString pubKey;
+    private final byte[] pubKey;
     private int balance;
     private LinkedList<Transfer> totalTransfers = new LinkedList<>(); // transfer = (key, amount)
     private LinkedList<Transfer> pendingTransfers = new LinkedList<>();
 
 
-    public User(ByteString pubKey, int balance) {
+    public User(byte[] pubKey, int balance) {
         this.pubKey = pubKey;
         this.balance = balance;
     }
 
-    public ByteString getPubKey() {
+    public byte[] getPubKey() {
         return pubKey;
     }
 

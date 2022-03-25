@@ -8,6 +8,7 @@ import java.security.*;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.security.spec.*;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.io.FileOutputStream;
@@ -51,29 +52,27 @@ public class Client {
             Key pubKey = rsaKeyPair.getPublic();
             Key privKey = rsaKeyPair.getPrivate();
 
-            KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
+            KeyStore ks = KeyStore.getInstance("JCEKS");
             ks.load(null, password.toCharArray());
 
-            try (FileOutputStream fos = new FileOutputStream(CLIENT_PATH + "\\keystore.jks")) {
-                ks.store(fos, password.toCharArray());
-            }
 
-            ks.load(new FileInputStream(CLIENT_PATH + "\\keystore.jks"), password.toCharArray());
+           // ks.load(new FileInputStream(CLIENT_PATH + "\\keystore.jks"), password.toCharArray());
             X509Certificate[] certificateChain = new X509Certificate[1];
             certificateChain[0] = selfSign(rsaKeyPair, "CN=sso-signing-key");
  
             ks.setKeyEntry("sso-signing-key", privKey, password.toCharArray(), certificateChain);
 
-            System.out.println("BEFORE SENDING REQUEST");
+            try (FileOutputStream fos = new FileOutputStream(CLIENT_PATH + "\\keystore.jks")) {
+                ks.store(fos, password.toCharArray());
+            }
 
             OpenAccountRequest req = OpenAccountRequest.newBuilder()
                                                         .setPublicKey(ByteString.copyFrom(pubKey.getEncoded()))
                                                         .setBalance(amount)
                                                         .build();
-                                                        
-            System.out.println("AFTER SENDING REQUEST");
+
             frontend.openAccount(req);
-            System.out.println("Account with key " + pubKey + " created");
+            System.out.println("Account with key " + pubKey.getEncoded() + " created with len: " +  pubKey.getEncoded().length);
         } catch (StatusRuntimeException e) {
             printError(e);
         } catch (Exception e){
@@ -155,12 +154,13 @@ public class Client {
     private byte[] encrypt(String message, String password){
         byte[] signature = null;
         try{
-            KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
-            ks.load(new FileInputStream(CLIENT_PATH + "\\keystore.txt"), password.toCharArray());
+            KeyStore ks = KeyStore.getInstance("JCEKS");
+            ks.load(new FileInputStream(CLIENT_PATH + "\\keystore.jks"), password.toCharArray());
+
             PrivateKey privKey = (PrivateKey) ks.getKey("sso-signing-key", password.toCharArray());
 
             // SIGNATURE
-            Signature sign = Signature.getInstance("SHA256withDSA");
+            Signature sign = Signature.getInstance("SHA256withRSA");
             sign.initSign(privKey);
 
             sign.update(message.getBytes("UTF-8"));
@@ -170,6 +170,7 @@ public class Client {
         } catch (IOException e) {
             e.printStackTrace();
         } catch(Exception e){
+            e.printStackTrace();
             System.out.println(("Error in encryption"));
         }
         

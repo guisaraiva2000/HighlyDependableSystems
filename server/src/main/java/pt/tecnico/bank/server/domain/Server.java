@@ -16,84 +16,96 @@ import java.util.stream.Collectors;
  */
 public class Server {
 
-    private final LinkedHashMap<ByteString, User> users = new LinkedHashMap<>();
+    private final LinkedHashMap<byte[], User> users = new LinkedHashMap<>();
 
     public Server() {}
 
     public synchronized boolean openAccount(ByteString pubKey, int balance) throws AccountAlreadyExistsException {
-        if (users.containsKey(pubKey))
+        byte[] pubKeyBites = keyToBytes(pubKey);
+
+        System.out.println("Public: " + pubKeyBites);
+
+        if (users.containsKey(pubKeyBites))
             throw new AccountAlreadyExistsException();
 
-        User newUser = new User(pubKey, balance);
-        users.put(pubKey, newUser);
+        User newUser = new User(pubKeyBites, balance);
+        users.put(pubKeyBites, newUser);
         return true;
     }
 
     public synchronized boolean sendAmount(ByteString sourceKey, ByteString destinationKey, int amount)
             throws AccountDoesNotExistsException, SameAccountException, NotEnoughBalanceException {
-                System.out.println("Accounts: " + users);
+        byte[] sourceKeyBites = keyToBytes(sourceKey);
+        byte[] destinationKeyBites = keyToBytes(destinationKey);
+
         if (sourceKey == destinationKey) {
             throw new SameAccountException();
-        } else if (!(users.containsKey(sourceKey) && users.containsKey(destinationKey))) {
+        } else if (!(users.containsKey(sourceKeyBites) && users.containsKey(destinationKeyBites))) {
             throw new AccountDoesNotExistsException();
         }
 
-        User sourceUser = users.get(sourceKey);
+        User sourceUser = users.get(sourceKeyBites);
 
         if (sourceUser.getBalance() < amount)
             throw new NotEnoughBalanceException();
 
         // TODO check if it was the source user that made the transfer ?????
 
-        User destUser = users.get(destinationKey);
+        User destUser = users.get(destinationKeyBites);
         LinkedList<Transfer> destPendingTransfers = destUser.getPendingTransfers();
-        destPendingTransfers.add(new Transfer(sourceKey, amount)); // added to the dest pending transfers list
+        destPendingTransfers.add(new Transfer(sourceKeyBites, amount)); // added to the dest pending transfers list
         destUser.setPendingTransfers(destPendingTransfers);
-        users.put(destinationKey, destUser);
+        users.put(destinationKeyBites, destUser);
 
-        System.out.println(users.get(destinationKey).toString());
+        System.out.println(users.get(destinationKeyBites).toString());
 
         return true;
     }
 
     public synchronized String[] checkAccount(ByteString pubKey) throws AccountDoesNotExistsException {
-        if (!(users.containsKey(pubKey)))
+        byte[] pubKeyBites = keyToBytes(pubKey);
+
+        if (!(users.containsKey(pubKeyBites)))
             throw new AccountDoesNotExistsException();
 
         String pendingTransfersAsString = null;
-        LinkedList<Transfer> pendingTransfers = users.get(pubKey).getPendingTransfers();
+        LinkedList<Transfer> pendingTransfers = users.get(pubKeyBites).getPendingTransfers();
 
         if (pendingTransfers != null) {
             pendingTransfersAsString = getTransfersAsString(pendingTransfers);
         }
 
-        return new String[]{ String.valueOf(users.get(pubKey).getBalance()), pendingTransfersAsString };
+        return new String[]{ String.valueOf(users.get(pubKeyBites).getBalance()), pendingTransfersAsString };
     }
 
     public synchronized boolean receiveAmount(ByteString pubKey) throws AccountDoesNotExistsException {
-        if (!(users.containsKey(pubKey)))
+        byte[] pubKeyBites = keyToBytes(pubKey);
+
+        if (!(users.containsKey(pubKeyBites)))
             throw new AccountDoesNotExistsException();
 
-        User user = users.get(pubKey);
+        User user = users.get(pubKeyBites);
         LinkedList<Transfer> pendingTransfers = user.getPendingTransfers();
 
         pendingTransfers.forEach(transfer -> {
-            transferAmount(transfer.getDestination(), pubKey, -transfer.getAmount()); // take from senders
-            transferAmount(pubKey, transfer.getDestination(), transfer.getAmount()); // transfer to receiver
+            transferAmount(transfer.getDestination(), pubKeyBites, -transfer.getAmount()); // take from senders
+            transferAmount(pubKeyBites, transfer.getDestination(), transfer.getAmount()); // transfer to receiver
         });
 
         pendingTransfers.clear();
         user.setPendingTransfers(pendingTransfers); // clear the list
-        users.put(pubKey, user); // update user
+        users.put(pubKeyBites, user); // update user
 
         return true;
     }
 
     public synchronized String audit(ByteString pubKey) throws AccountDoesNotExistsException {
-        if (!(users.containsKey(pubKey)))
+        byte[] pubKeyBites = keyToBytes(pubKey);
+
+        if (!(users.containsKey(pubKeyBites)))
             throw new AccountDoesNotExistsException();
 
-        LinkedList<Transfer> totalTransfers = users.get(pubKey).getTotalTransfers();
+        LinkedList<Transfer> totalTransfers = users.get(pubKeyBites).getTotalTransfers();
 
         if (totalTransfers != null)
             return getTransfersAsString(totalTransfers);
@@ -103,7 +115,7 @@ public class Server {
 
     // ------------------------------------ AUX -------------------------------------
 
-    private void transferAmount(ByteString senderKey, ByteString receiverKey, int amount) {
+    private void transferAmount(byte[] senderKey, byte[] receiverKey, int amount) {
         User user = users.get(senderKey);
         LinkedList<Transfer> totalTransfers = user.getTotalTransfers();
         totalTransfers.add(new Transfer(receiverKey, amount));
@@ -114,5 +126,11 @@ public class Server {
 
     private String getTransfersAsString(LinkedList<Transfer> pendingTransfers) {
         return pendingTransfers.stream().map(Transfer::toString).collect(Collectors.joining());
+    }
+
+    private byte[] keyToBytes(ByteString pubKey) {
+        byte[] pubKeyBites = new byte[294];
+        pubKey.copyTo(pubKeyBites, 0);
+        return pubKeyBites;
     }
 }
