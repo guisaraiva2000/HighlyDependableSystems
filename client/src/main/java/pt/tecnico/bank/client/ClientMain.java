@@ -4,6 +4,7 @@ import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
 import pt.tecnico.bank.server.ServerFrontend;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class ClientMain {
@@ -60,7 +61,10 @@ public class ClientMain {
                         break;
                     case "send":
                         if (tokens.length == 5) {
-                            client.send_amount(ByteString.copyFromUtf8(tokens[1]), ByteString.copyFromUtf8(tokens[2]), Integer.parseInt(tokens[3]), tokens[4]);
+                            client.send_amount(ByteString.copyFrom(tokens[1].getBytes(StandardCharsets.UTF_8)),
+                                                ByteString.copyFrom(tokens[1].getBytes(StandardCharsets.UTF_8)),
+                                                Integer.parseInt(tokens[3]),
+                                                tokens[4]);
                         } else {
                             System.err.println("ERROR: Usage: send %orig_key% %dest_key% %amount% %password%");
                         }

@@ -4,6 +4,8 @@ import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
 import pt.tecnico.bank.server.ServerFrontend;
 import pt.tecnico.bank.server.grpc.Server.*;
+
+import java.io.*;
 import java.security.*;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -11,15 +13,9 @@ import java.security.spec.*;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
-import java.io.FileOutputStream;
-import java.io.FileInputStream;
-import java.io.OutputStream;
 import java.math.BigInteger;
-import java.io.InputStream;
-import java.io.IOException;
 import java.nio.file.*;
 import java.nio.charset.StandardCharsets;
-import java.io.File;
 import javax.crypto.*;
 
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
@@ -66,13 +62,18 @@ public class Client {
                 ks.store(fos, password.toCharArray());
             }
 
+            byte[] encoded = pubKey.getEncoded();
+            try (FileOutputStream out = new FileOutputStream("test_client2.txt")) {
+                out.write(encoded);
+            }
+
             OpenAccountRequest req = OpenAccountRequest.newBuilder()
-                                                        .setPublicKey(ByteString.copyFrom(pubKey.getEncoded()))
+                                                        .setPublicKey(ByteString.copyFrom(encoded))
                                                         .setBalance(amount)
                                                         .build();
 
             frontend.openAccount(req);
-            System.out.println("Account with key " + pubKey.getEncoded() + " created with len: " +  pubKey.getEncoded().length);
+            System.out.println("Account with key " + encoded + " created with len: " +  pubKey.getEncoded().length);
         } catch (StatusRuntimeException e) {
             printError(e);
         } catch (Exception e){
