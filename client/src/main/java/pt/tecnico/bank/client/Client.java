@@ -67,13 +67,13 @@ public class Client {
                 out.write(encoded);
             }
 
-        OpenAccountRequest req = OpenAccountRequest.newBuilder()
+            OpenAccountRequest req = OpenAccountRequest.newBuilder()
                                                         .setPublicKey(ByteString.copyFrom(encoded))
                                                         .setBalance(amount)
                                                         .build();
 
             frontend.openAccount(req);
-            System.out.println("Account with key " + encoded + " created with len: " +  pubKey.getEncoded().length);
+            System.out.println("Account with key " + pubKey + " created with len: " +  pubKey.getEncoded().length);
         } catch (StatusRuntimeException e) {
             printError(e);
         } catch (Exception e){
@@ -97,7 +97,7 @@ public class Client {
             // TODO
             byte[] signature = encrypt(message.toString(), password);
 
-            // send encrypted message isntead of clear message
+            // send encrypted message instead of clear message
             SendAmountRequest req = SendAmountRequest.newBuilder().setSourceKey(orig_key)
                                                                 .setDestinationKey(dest_key)
                                                                 .setAmount(amount)

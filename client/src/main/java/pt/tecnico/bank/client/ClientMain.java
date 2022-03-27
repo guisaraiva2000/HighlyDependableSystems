@@ -4,6 +4,9 @@ import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
 import pt.tecnico.bank.server.ServerFrontend;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Scanner;
 
 public class ClientMain {
@@ -47,10 +50,9 @@ public class ClientMain {
 
                 switch (tokens[0]) {
                     case "open":
-                        if (tokens.length == 3 && !opened) {
-                            opened = true; // TODO just for testing, delete after we got the keys
-                            try{
-                            client.open_account(Integer.parseInt(tokens[1]), tokens[2]);
+                        if (tokens.length == 3) {
+                            try {
+                                client.open_account(Integer.parseInt(tokens[1]), tokens[2]);
                             } catch(Exception e){
                                 e.printStackTrace();
                             }
@@ -60,6 +62,12 @@ public class ClientMain {
                         break;
                     case "send":
                         if (tokens.length == 5) {
+                            try (FileOutputStream out = new FileOutputStream("test_client_send.txt")) {
+                                out.write(tokens[1].getBytes());
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+
                             client.send_amount(ByteString.copyFrom(tokens[1].getBytes()),
                                                 ByteString.copyFrom(tokens[1].getBytes()),
                                                 Integer.parseInt(tokens[3]),

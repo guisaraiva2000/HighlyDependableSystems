@@ -6,6 +6,8 @@ import pt.tecnico.bank.server.domain.exception.AccountDoesNotExistsException;
 import pt.tecnico.bank.server.domain.exception.NotEnoughBalanceException;
 import pt.tecnico.bank.server.domain.exception.SameAccountException;
 
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
@@ -26,91 +28,90 @@ public class Server {
     public Server() {}
 
     public synchronized boolean openAccount(ByteString pubKey, int balance) throws AccountAlreadyExistsException {
-        PublicKey pubKeyBites = keyToBytes(pubKey);
+        PublicKey pubKeyBytes = keyToBytes(pubKey);
 
-        //System.out.println("Public: " + pubKeyBites);
-
-        if (users.containsKey(pubKeyBites))
+        if (users.containsKey(pubKeyBytes))
             throw new AccountAlreadyExistsException();
 
-        User newUser = new User(pubKeyBites, balance);
-        users.put(pubKeyBites, newUser);
+        User newUser = new User(pubKeyBytes, balance);
+        users.put(pubKeyBytes, newUser);
+
         return true;
     }
 
     public synchronized boolean sendAmount(ByteString sourceKey, ByteString destinationKey, int amount)
             throws AccountDoesNotExistsException, SameAccountException, NotEnoughBalanceException {
-        PublicKey sourceKeyBites = keyToBytes(sourceKey);
-        PublicKey destinationKeyBites = keyToBytes(destinationKey);
+        PublicKey sourceKeyBytes = keyToBytes(sourceKey);
+        PublicKey destinationKeyBytes = keyToBytes(destinationKey);
 
-        if (sourceKey.equals(destinationKey)) {
+        /*if (sourceKey.equals(destinationKey)) {
             throw new SameAccountException();
-        } else if (!(users.containsKey(sourceKeyBites) && users.containsKey(destinationKeyBites))) {
+        } else*/ if (!(users.containsKey(sourceKeyBytes) && users.containsKey(destinationKeyBytes))) {
             throw new AccountDoesNotExistsException();
         }
 
-        User sourceUser = users.get(sourceKeyBites);
+        User sourceUser = users.get(sourceKeyBytes);
 
         if (sourceUser.getBalance() < amount)
             throw new NotEnoughBalanceException();
 
         // TODO check if it was the source user that made the transfer ?????
 
-        User destUser = users.get(destinationKeyBites);
+        User destUser = users.get(destinationKeyBytes);
         LinkedList<Transfer> destPendingTransfers = destUser.getPendingTransfers();
-        destPendingTransfers.add(new Transfer(sourceKeyBites, amount)); // added to the dest pending transfers list
+        destPendingTransfers.add(new Transfer(sourceKeyBytes, amount)); // added to the dest pending transfers list
         destUser.setPendingTransfers(destPendingTransfers);
-        users.put(destinationKeyBites, destUser);
+        users.put(destinationKeyBytes, destUser);
 
-        System.out.println(users.get(destinationKeyBites).toString());
+        System.out.println(users.get(destinationKeyBytes).toString());
 
         return true;
     }
 
     public synchronized String[] checkAccount(ByteString pubKey) throws AccountDoesNotExistsException {
-        PublicKey pubKeyBites = keyToBytes(pubKey);
+        PublicKey pubKeyBytes = keyToBytes(pubKey);
 
-        if (!(users.containsKey(pubKeyBites)))
+        if (!(users.containsKey(pubKeyBytes)))
             throw new AccountDoesNotExistsException();
 
         String pendingTransfersAsString = null;
-        LinkedList<Transfer> pendingTransfers = users.get(pubKeyBites).getPendingTransfers();
+        LinkedList<Transfer> pendingTransfers = users.get(pubKeyBytes).getPendingTransfers();
 
         if (pendingTransfers != null) {
             pendingTransfersAsString = getTransfersAsString(pendingTransfers);
         }
 
-        return new String[]{ String.valueOf(users.get(pubKeyBites).getBalance()), pendingTransfersAsString };
+        return new String[]{ String.valueOf(users.get(pubKeyBytes).getBalance()), pendingTransfersAsString };
     }
 
     public synchronized boolean receiveAmount(ByteString pubKey) throws AccountDoesNotExistsException {
-        PublicKey pubKeyBites = keyToBytes(pubKey);
+        PublicKey pubKeyBytes = keyToBytes(pubKey);
 
-        if (!(users.containsKey(pubKeyBites)))
+        if (!(users.containsKey(pubKeyBytes)))
             throw new AccountDoesNotExistsException();
 
-        User user = users.get(pubKeyBites);
+        User user = users.get(pubKeyBytes);
         LinkedList<Transfer> pendingTransfers = user.getPendingTransfers();
 
         pendingTransfers.forEach(transfer -> {
-            transferAmount(transfer.getDestination(), pubKeyBites, -transfer.getAmount()); // take from senders
-            transferAmount(pubKeyBites, transfer.getDestination(), transfer.getAmount()); // transfer to receiver
+            transferAmount(transfer.getDestination(), pubKeyBytes, -transfer.getAmount()); // take from senders
+            transferAmount(pubKeyBytes, transfer.getDestination(), transfer.getAmount()); // transfer to receiver
         });
 
         pendingTransfers.clear();
         user.setPendingTransfers(pendingTransfers); // clear the list
-        users.put(pubKeyBites, user); // update user
+        users.put(pubKeyBytes, user); // update user
 
         return true;
     }
 
     public synchronized String audit(ByteString pubKey) throws AccountDoesNotExistsException {
-        PublicKey pubKeyBites = keyToBytes(pubKey);
+        PublicKey pubKeyBytes = keyToBytes(pubKey);
 
-        if (!(users.containsKey(pubKeyBites)))
+        if (!(users.containsKey(pubKeyBytes)))
             throw new AccountDoesNotExistsException();
 
-        LinkedList<Transfer> totalTransfers = users.get(pubKeyBites).getTotalTransfers();
+        LinkedList<Transfer> totalTransfers = users.get(pubKeyBytes).getTotalTransfers();
 
         if (totalTransfers != null)
             return getTransfersAsString(totalTransfers);
@@ -134,19 +135,16 @@ public class Server {
     }
 
     private PublicKey keyToBytes(ByteString pubKey) {
-        byte[] pubKeyBites = new byte[294];
-        pubKey.copyTo(pubKeyBites, 0);
+        byte[] pubKeyBytes = new byte[294];
+        pubKey.copyTo(pubKeyBytes, 0);
 
         PublicKey publicKey = null;
 
         try {
-            publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(pubKeyBites));
-
-            System.out.println(publicKey.getEncoded());
+            publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(pubKeyBytes));
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
             e.printStackTrace();
         }
         return publicKey;
-
     }
 }
