@@ -1,16 +1,13 @@
 package pt.tecnico.bank.client;
 
-//TODO
-import com.google.protobuf.ByteString;
-
 public class SendMoney {
     
-    public ByteString originAccount;
-    public ByteString destinationAccount;
+    public byte[] originAccount;
+    public byte[] destinationAccount;
     public float amount;
     public String nonce;
 
-    public SendMoney(ByteString originAccount, ByteString destinationAccount, float amount, String nonce)
+    public SendMoney(byte[] originAccount, byte[] destinationAccount, float amount, String nonce)
     {
         this.originAccount = originAccount;
         this.destinationAccount = destinationAccount;
@@ -18,12 +15,12 @@ public class SendMoney {
         this.nonce = nonce;
     }
 
-    public ByteString getOriginAccount()
+    public byte[] getOriginAccount()
     {
         return originAccount;
     }
 
-    public ByteString getDestinationAccount()
+    public byte[] getDestinationAccount()
     {
         return destinationAccount;
     }

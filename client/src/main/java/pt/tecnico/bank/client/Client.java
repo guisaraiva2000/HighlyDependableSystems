@@ -3,6 +3,22 @@ package pt.tecnico.bank.client;
 import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
 import org.apache.commons.lang3.RandomStringUtils;
+import pt.tecnico.bank.server.ServerFrontend;
+
+import java.io.*;
+import java.security.*;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.security.spec.*;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.math.BigInteger;
+import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
+import javax.crypto.*;
+
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.BasicConstraints;
@@ -11,7 +27,6 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
-import pt.tecnico.bank.server.ServerFrontend;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 import javax.crypto.Cipher;
@@ -19,28 +34,22 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.security.*;
-import java.security.cert.X509Certificate;
 import java.security.spec.EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Date;
 
 public class Client {
 
     private final ServerFrontend frontend;
     private final String KEY_STORE = "keystore";
     private final String CLIENT_PATH = System.getProperty("user.dir");
+    private final String CERT_PATH = System.getProperty("user.dir") + "\\CERTIFICATES\\";
 
     public Client(ServerFrontend frontend){
         this.frontend = frontend;
     }
 
-    void open_account(int amount, String password){
+    void open_account(String accountName, int amount, String password){
 
         try {
             KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
@@ -54,12 +63,11 @@ public class Client {
             KeyStore ks = KeyStore.getInstance("JCEKS");
             ks.load(null, password.toCharArray());
 
-
            // ks.load(new FileInputStream(CLIENT_PATH + "\\keystore.jks"), password.toCharArray());
             X509Certificate[] certificateChain = new X509Certificate[1];
-            certificateChain[0] = selfSign(rsaKeyPair, "CN=sso-signing-key");
+            certificateChain[0] = selfSign(rsaKeyPair, accountName);
  
-            ks.setKeyEntry("sso-signing-key", privKey, password.toCharArray(), certificateChain);
+            ks.setKeyEntry(accountName, privKey, password.toCharArray(), certificateChain);
 
             try (FileOutputStream fos = new FileOutputStream(CLIENT_PATH + "\\keystore.jks")) {
                 ks.store(fos, password.toCharArray());
@@ -85,32 +93,41 @@ public class Client {
     }
 
 
-    void send_amount(ByteString orig_key, ByteString dest_key, int amount, String password){
+    void send_amount(String senderAccount, String receiverAccount, int amount, String password){
         try {
 
             String nonce = RandomStringUtils.randomAlphanumeric(10);
             long timestamp = System.currentTimeMillis() / 1000;
 
+            byte[] orig_bytes = getPublicKey(senderAccount).getEncoded();
+            byte[] dest_bytes = getPublicKey(receiverAccount).getEncoded();
+
+          /*  for(int i=0; i< orig_bytes.length ; i++)
+                System.out.print(orig_bytes[i] +" ");
+
+            for(int j=0; j< dest_bytes.length ; j++)
+                System.out.print(dest_bytes[j] +" ");*/
+
             SendMoney message = new SendMoney(
-                orig_key,
-                dest_key,
+                orig_bytes,
+                dest_bytes,
                 amount,
                 nonce
             );
 
             // TODO
-            byte[] signature = encrypt(message.toString(), password);
+            byte[] signature = encrypt(senderAccount, message.toString(), password);
 
             // send encrypted message instead of clear message
-            SendAmountRequest req = SendAmountRequest.newBuilder().setSourceKey(orig_key)
-                                                                .setDestinationKey(dest_key)
+            SendAmountRequest req = SendAmountRequest.newBuilder().setSourceKey(ByteString.copyFrom(orig_bytes))
+                                                                .setDestinationKey(ByteString.copyFrom(dest_bytes))
                                                                 .setAmount(amount)
                                                                 .setSignature(ByteString.copyFrom(signature))
                                                                 .setNonce(nonce)
                                                                 .setTimestamp(timestamp)
                                                                 .build();
             frontend.sendAmount(req);
-            System.out.println("Sent " + amount + " from " + orig_key + " to " + dest_key);
+            System.out.println("Sent " + amount + " from " + senderAccount + " to " + receiverAccount);
         } catch (StatusRuntimeException e) {
             printError(e);
         } catch (Exception e){
@@ -158,13 +175,13 @@ public class Client {
         }
     }
 
-    private byte[] encrypt(String message, String password){
+    private byte[] encrypt(String alias, String message, String password){
         byte[] signature = null;
         try{
             KeyStore ks = KeyStore.getInstance("JCEKS");
             ks.load(new FileInputStream(CLIENT_PATH + "\\keystore.jks"), password.toCharArray());
 
-            PrivateKey privKey = (PrivateKey) ks.getKey("sso-signing-key", password.toCharArray());
+            PrivateKey privKey = (PrivateKey) ks.getKey(alias, password.toCharArray());
 
             // SIGNATURE
             Signature sign = Signature.getInstance("SHA256withRSA");
@@ -208,7 +225,7 @@ public class Client {
         return decryptedMessage;
     }
 
-    public static X509Certificate selfSign(KeyPair keyPair, String subjectDN)
+    private X509Certificate selfSign(KeyPair keyPair, String subjectDN)
     {
         X509Certificate certificate = null;
         try{
@@ -218,7 +235,7 @@ public class Client {
             long now = System.currentTimeMillis();
             Date startDate = new Date(now);
 
-            X500Name dnName = new X500Name(subjectDN);
+            X500Name dnName = new X500Name("CN="+subjectDN);
             BigInteger certSerialNumber = new BigInteger(Long.toString(now)); // <-- Using the current timestamp as the certificate serial number
 
             Calendar calendar = Calendar.getInstance();
@@ -234,14 +251,25 @@ public class Client {
             BasicConstraints basicConstraints = new BasicConstraints(true); // <-- true for CA, false for EndEntity
             certBuilder.addExtension(new ASN1ObjectIdentifier("2.5.29.19"), true, basicConstraints); // Basic Constraints is usually marked as critical.
             certificate = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certBuilder.build(contentSigner));
+
+            byte[] buf = certificate.getEncoded();
+    
+            File file = new File(CERT_PATH + subjectDN + ".cert"); 
+            file.createNewFile();
+            try (FileOutputStream out = new FileOutputStream(file)) {
+                out.write(buf);
+            }
+
         } catch (Exception e){
             e.printStackTrace();
         }
 
+
         return certificate;
     }
 
-    public static String createRandomNonce() {
+    private String createRandomNonce() 
+    {
         final byte[] ar = new byte[48];
         new SecureRandom().nextBytes(ar);
         final String nonce = new String(java.util.Base64.getUrlEncoder().withoutPadding().encode(ar), StandardCharsets.UTF_8);
@@ -249,5 +277,20 @@ public class Client {
         return nonce;
     }
 
+    private PublicKey getPublicKey(String alias)
+    {
+        X509Certificate cert = null;
+
+        try{
+            CertificateFactory fac = CertificateFactory.getInstance("X509");
+            FileInputStream in = new FileInputStream(CERT_PATH + alias + ".cert");
+            cert = (X509Certificate) fac.generateCertificate(in);
+        } catch(Exception e){
+            e.printStackTrace();
+        }
+
+        return cert.getPublicKey();
+
+    }
 
 }

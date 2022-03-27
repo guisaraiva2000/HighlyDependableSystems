@@ -39,9 +39,15 @@ public class Server {
         PublicKey sourceKeyBytes = keyToBytes(sourceKey);
         PublicKey destinationKeyBytes = keyToBytes(destinationKey);
 
+        System.out.println(timestamp);
+        System.out.println(System.currentTimeMillis());
+
+        /*for(PublicKey k : users.keySet())
+            System.out.println(k);*/
+
         /*if (sourceKey.equals(destinationKey)) {
             throw new SameAccountException();
-        } else*/ if (!(users.containsKey(sourceKeyBytes) && users.containsKey(destinationKeyBytes))) {
+        } else */if (!(users.containsKey(sourceKeyBytes) && users.containsKey(destinationKeyBytes))) {
             throw new AccountDoesNotExistsException();
         }
 

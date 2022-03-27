@@ -50,14 +50,14 @@ public class ClientMain {
 
                 switch (tokens[0]) {
                     case "open":
-                        if (tokens.length == 3) {
+                        if (tokens.length == 4) {
                             try {
-                                client.open_account(Integer.parseInt(tokens[1]), tokens[2]);
+                                client.open_account(tokens[1], Integer.parseInt(tokens[2]), tokens[3]);
                             } catch(Exception e){
                                 e.printStackTrace();
                             }
                         } else {
-                            System.err.println("ERROR: Usage: open %amount% %password%");
+                            System.err.println("ERROR: Usage: open %accountName% %amount% %password%");
                         }
                         break;
                     case "send":
@@ -68,12 +68,11 @@ public class ClientMain {
                                 e.printStackTrace();
                             }
 
-                            client.send_amount(ByteString.copyFrom(tokens[1].getBytes()),
-                                                ByteString.copyFrom(tokens[1].getBytes()),
+                            client.send_amount(tokens[1], tokens[2],
                                                 Integer.parseInt(tokens[3]),
                                                 tokens[4]);
                         } else {
-                            System.err.println("ERROR: Usage: send %orig_key% %dest_key% %amount% %password%");
+                            System.err.println("ERROR: Usage: send %sender_account% %receiver_account% %amount% %password%");
                         }
                         break;
                     case "check":
