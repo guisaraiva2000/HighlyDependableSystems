@@ -4,8 +4,7 @@ import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
 import pt.tecnico.bank.server.ServerFrontend;
 
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.Scanner;
 
 public class ClientMain {
 
@@ -61,8 +60,8 @@ public class ClientMain {
                         break;
                     case "send":
                         if (tokens.length == 5) {
-                            client.send_amount(ByteString.copyFrom(tokens[1].getBytes(StandardCharsets.UTF_8)),
-                                                ByteString.copyFrom(tokens[1].getBytes(StandardCharsets.UTF_8)),
+                            client.send_amount(ByteString.copyFrom(tokens[1].getBytes()),
+                                                ByteString.copyFrom(tokens[1].getBytes()),
                                                 Integer.parseInt(tokens[3]),
                                                 tokens[4]);
                         } else {

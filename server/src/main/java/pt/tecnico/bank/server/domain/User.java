@@ -1,23 +1,22 @@
 package pt.tecnico.bank.server.domain;
 
-import com.google.protobuf.ByteString;
-
+import java.security.PublicKey;
 import java.util.LinkedList;
 
 public class User {
 
-    private final byte[] pubKey;
+    private final PublicKey pubKey;
     private int balance;
     private LinkedList<Transfer> totalTransfers = new LinkedList<>(); // transfer = (key, amount)
     private LinkedList<Transfer> pendingTransfers = new LinkedList<>();
 
 
-    public User(byte[] pubKey, int balance) {
+    public User(PublicKey pubKey, int balance) {
         this.pubKey = pubKey;
         this.balance = balance;
     }
 
-    public byte[] getPubKey() {
+    public PublicKey getPubKey() {
         return pubKey;
     }
 

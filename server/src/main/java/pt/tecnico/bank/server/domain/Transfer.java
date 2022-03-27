@@ -1,24 +1,22 @@
 package pt.tecnico.bank.server.domain;
 
-import com.google.protobuf.ByteString;
-
-import java.util.Arrays;
+import java.security.PublicKey;
 
 public  class Transfer {
 
-    private byte[] destination;
+    private PublicKey destination;
     private int amount;
 
-    public Transfer(byte[] destination, int amount) {
+    public Transfer(PublicKey destination, int amount) {
         this.destination = destination;
         this.amount = amount;
     }
 
-    public byte[] getDestination() {
+    public PublicKey getDestination() {
         return destination;
     }
 
-    public void setDestination(byte[] destination) {
+    public void setDestination(PublicKey destination) {
         this.destination = destination;
     }
 
@@ -33,7 +31,7 @@ public  class Transfer {
     @Override
     public String toString() {
         return "{" +
-                "destination=" + Arrays.toString(destination) +
+                "destination=" + destination +
                 ", amount=" + amount +
                 '}';
     }

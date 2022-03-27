@@ -67,7 +67,7 @@ public class Client {
                 out.write(encoded);
             }
 
-            OpenAccountRequest req = OpenAccountRequest.newBuilder()
+        OpenAccountRequest req = OpenAccountRequest.newBuilder()
                                                         .setPublicKey(ByteString.copyFrom(encoded))
                                                         .setBalance(amount)
                                                         .build();
