@@ -5,19 +5,14 @@ import io.grpc.StatusRuntimeException;
 import org.apache.commons.lang3.RandomStringUtils;
 import pt.tecnico.bank.server.ServerFrontend;
 
-import java.io.*;
 import java.security.*;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.security.spec.*;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.math.BigInteger;
-import java.nio.file.*;
 import java.nio.charset.StandardCharsets;
-import javax.crypto.*;
 
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.x500.X500Name;

@@ -12,6 +12,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.stream.Collectors;
 
+import java.nio.charset.StandardCharsets;
+import java.security.Signature;
+
 /**
  * Facade class.
  * Contains the service operations.
@@ -50,6 +53,16 @@ public class Server {
         } else */if (!(users.containsKey(sourceKeyBytes) && users.containsKey(destinationKeyBytes))) {
             throw new AccountDoesNotExistsException();
         }
+
+        /*SendMoney message = new SendMoney
+        (
+            sourceyKeyBytes,
+            destinationKeyBytes,
+            amount,
+            nonce
+        );*/
+
+        //validateMessage(sourceKeyBytes, message.toString(), request.getSignature());
 
         validateNonce(sourceKeyBytes, nonce, timestamp);
 
@@ -155,5 +168,19 @@ public class Server {
             throws NonceAlreadyUsedException, TimestampExpiredException {
         users.get(publicKey).getNonceManager().validateNonce(nonce, timestamp);
         System.out.println(users.get(publicKey).getNonceManager());
+    }
+
+    private boolean validateMessage(byte[] pubKey, String message, byte[] sign)
+    {
+       /* try{
+            Signature signature = Signature.getInstance("SHA256withRSA");
+            signature.initVerify(pubKey);
+            signature.update(message.getBytes(StandardCharsets.UTF_8));
+        } catch(Exception e){
+            e.printStackTrace();
+        }
+
+        return signature.verify(sign);*/
+        return true;
     }
 }
