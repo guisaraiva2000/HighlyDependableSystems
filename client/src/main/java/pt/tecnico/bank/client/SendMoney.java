@@ -8,9 +8,9 @@ public class SendMoney {
     public ByteString originAccount;
     public ByteString destinationAccount;
     public float amount;
-    public byte[] nonce;
+    public String nonce;
 
-    public SendMoney(ByteString originAccount, ByteString destinationAccount, float amount, byte[] nonce)
+    public SendMoney(ByteString originAccount, ByteString destinationAccount, float amount, String nonce)
     {
         this.originAccount = originAccount;
         this.destinationAccount = destinationAccount;

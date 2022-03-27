@@ -2,10 +2,7 @@ package pt.tecnico.bank.server;
 
 import io.grpc.stub.StreamObserver;
 import pt.tecnico.bank.server.domain.Server;
-import pt.tecnico.bank.server.domain.exception.AccountAlreadyExistsException;
-import pt.tecnico.bank.server.domain.exception.AccountDoesNotExistsException;
-import pt.tecnico.bank.server.domain.exception.NotEnoughBalanceException;
-import pt.tecnico.bank.server.domain.exception.SameAccountException;
+import pt.tecnico.bank.server.domain.exception.*;
 import pt.tecnico.bank.server.grpc.Server.*;
 import pt.tecnico.bank.server.grpc.ServerServiceGrpc;
 
@@ -50,7 +47,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     @Override
     public void sendAmount(SendAmountRequest request, StreamObserver<SendAmountResponse> responseObserver) {
         try {
-            boolean ack = server.sendAmount(request.getSourceKey(), request.getDestinationKey(), request.getAmount());
+            boolean ack = server.sendAmount(request.getSourceKey(), request.getDestinationKey(), request.getAmount(), request.getNonce(), request.getTimestamp());
             SendAmountResponse response = SendAmountResponse.newBuilder().setAck(ack).build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
@@ -60,6 +57,10 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
         } catch (NotEnoughBalanceException e) {
             responseObserver.onError(OUT_OF_RANGE.withDescription(e.getMessage()).asRuntimeException());
+        } catch (NonceAlreadyUsedException e) {
+            responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
+        } catch (TimestampExpiredException e) {
+            responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
         }
     }
 

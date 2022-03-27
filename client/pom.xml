@@ -44,7 +44,13 @@
 			<artifactId>bcprov-jdk16</artifactId>
 			<version>1.46</version>
 		</dependency>
-	</dependencies>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.11</version>
+            <scope>compile</scope>
+        </dependency>
+    </dependencies>
 
 	<build>
 		<!-- Resources are files like properties, images, etc; used by the module.  -->

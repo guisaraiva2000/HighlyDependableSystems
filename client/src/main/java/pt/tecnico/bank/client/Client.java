@@ -2,22 +2,7 @@ package pt.tecnico.bank.client;
 
 import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
-import pt.tecnico.bank.server.ServerFrontend;
-import pt.tecnico.bank.server.grpc.Server.*;
-
-import java.io.*;
-import java.security.*;
-import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
-import java.security.spec.*;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Date;
-import java.math.BigInteger;
-import java.nio.file.*;
-import java.nio.charset.StandardCharsets;
-import javax.crypto.*;
-
+import org.apache.commons.lang3.RandomStringUtils;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.BasicConstraints;
@@ -26,6 +11,24 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import pt.tecnico.bank.server.ServerFrontend;
+import pt.tecnico.bank.server.grpc.Server.*;
+
+import javax.crypto.Cipher;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.security.*;
+import java.security.cert.X509Certificate;
+import java.security.spec.EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
 
 public class Client {
 
@@ -81,11 +84,12 @@ public class Client {
         }
     }
 
+
     void send_amount(ByteString orig_key, ByteString dest_key, int amount, String password){
         try {
 
-            byte[] nonce = new byte[12];
-            new SecureRandom().nextBytes(nonce);
+            String nonce = RandomStringUtils.randomAlphanumeric(10);
+            long timestamp = System.currentTimeMillis() / 1000;
 
             SendMoney message = new SendMoney(
                 orig_key,
@@ -102,6 +106,8 @@ public class Client {
                                                                 .setDestinationKey(dest_key)
                                                                 .setAmount(amount)
                                                                 .setSignature(ByteString.copyFrom(signature))
+                                                                .setNonce(nonce)
+                                                                .setTimestamp(timestamp)
                                                                 .build();
             frontend.sendAmount(req);
             System.out.println("Sent " + amount + " from " + orig_key + " to " + dest_key);
@@ -164,7 +170,7 @@ public class Client {
             Signature sign = Signature.getInstance("SHA256withRSA");
             sign.initSign(privKey);
 
-            sign.update(message.getBytes("UTF-8"));
+            sign.update(message.getBytes(StandardCharsets.UTF_8));
             signature = sign.sign();
 
             
@@ -234,5 +240,14 @@ public class Client {
 
         return certificate;
     }
+
+    public static String createRandomNonce() {
+        final byte[] ar = new byte[48];
+        new SecureRandom().nextBytes(ar);
+        final String nonce = new String(java.util.Base64.getUrlEncoder().withoutPadding().encode(ar), StandardCharsets.UTF_8);
+        Arrays.fill(ar, (byte) 0);
+        return nonce;
+    }
+
 
 }

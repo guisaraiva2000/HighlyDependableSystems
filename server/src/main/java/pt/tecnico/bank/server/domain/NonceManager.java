@@ -1,54 +1,59 @@
-/*package pt.tecnico.bank.server.domain;
+package pt.tecnico.bank.server.domain;
 
-import java.security.PublicKey;
+import pt.tecnico.bank.server.domain.exception.NonceAlreadyUsedException;
+import pt.tecnico.bank.server.domain.exception.TimestampExpiredException;
+
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
-import java.util.TreeSet;
+import java.util.List;
 
 public class NonceManager {
 
     /**
-     * Contains all the nonces that were used inside the validity window.
-     //
-    static final TreeSet<NonceEntry> NONCES = new TreeSet<>();
+     * Contains all the nonces that were used inside the validity window sorted by timestamp.
+     */
+    static final List<NonceEntry> nonces = new ArrayList<>() {
+        public boolean add(NonceEntry nonceEntry) {
+            super.add(nonceEntry);
+            nonces.sort(Comparator.comparing(NonceEntry::getTimestamp));
+            return true;
+        }
+    };
 
     private volatile long lastCleaned = 0;
 
-    // we'll default to a 10 minute validity window, otherwise the amount of memory used on NONCES can get quite large.
+    // we'll default to a 10-minute validity window, otherwise the amount of memory used on nonces can get quite large.
     private long validityWindowSeconds = 60 * 10;
 
-    public void validateNonce(PublicKey publicKey, long timestamp, String nonce) {
+    public void validateNonce(String nonce, long timestamp) throws TimestampExpiredException, NonceAlreadyUsedException {
         if (System.currentTimeMillis() / 1000 - timestamp > getValidityWindowSeconds()) {
-            throw new CredentialsExpiredException("Expired timestamp.");
+            throw new TimestampExpiredException();
         }
 
-        NonceEntry entry = new NonceEntry(publicKey, timestamp, nonce);
+        NonceEntry entry = new NonceEntry(timestamp, nonce);
 
-        synchronized (NONCES) {
-            if (NONCES.contains(entry)) {
-                throw new NonceAlreadyUsedException("Nonce already used");
-            } else {
-                NONCES.add(entry);
-            }
+        synchronized (nonces) {
+            if (nonces.contains(entry))
+                throw new NonceAlreadyUsedException();
+
+            nonces.add(entry);
             cleanupNonces();
         }
     }
 
     private void cleanupNonces() {
         long now = System.currentTimeMillis() / 1000;
-        // don't clean out the NONCES for each request, this would cause the service to be constantly locked on this
-        // loop under load. One second is small enough that cleaning up does not become too expensive.
-        // Also see SECOAUTH-180 for reasons this class was refactored.
-        if (now - lastCleaned > 1) {
-            Iterator<NonceEntry> iterator = NONCES.iterator();
+
+        if (now - lastCleaned > 1) {    // One second is small enough that cleaning up does not become too expensive.
+            Iterator<NonceEntry> iterator = nonces.iterator();
             while (iterator.hasNext()) {
-                // the nonces are already sorted, so simply iterate and remove until the first nonce within the validity
-                // window.
                 NonceEntry nextNonce = iterator.next();
                 long difference = now - nextNonce.timestamp;
                 if (difference > getValidityWindowSeconds()) {
                     iterator.remove();
                 } else {
-                    break;
+                    break; // we can break because the list is sorted
                 }
             }
             // keep track of when cleanupNonces last ran
@@ -65,58 +70,24 @@ public class NonceManager {
     }
 
     /**
-     * Representation of a nonce with the right hashCode, equals, and compareTo methods for the TreeSet approach above
-     * to work.
-     //
-    static class NonceEntry implements Comparable<NonceEntry> {
-        private final PublicKey consumerKey;
+     * Representation of a nonce
+     */
+    static class NonceEntry {
 
         private final long timestamp;
-
         private final String nonce;
 
-        public NonceEntry(PublicKey consumerKey, long timestamp, String nonce) {
-            this.consumerKey = consumerKey;
+        public NonceEntry(long timestamp, String nonce) {
             this.timestamp = timestamp;
             this.nonce = nonce;
         }
 
-        @Override
-        public int hashCode() {
-            return consumerKey.hashCode() * nonce.hashCode() * Long.valueOf(timestamp).hashCode();
+        public long getTimestamp() {
+            return timestamp;
         }
 
-        @Override
-        public boolean equals(Object obj) {
-            if (!(obj instanceof NonceEntry)) {
-                return false;
-            }
-            NonceEntry arg = (NonceEntry) obj;
-            return timestamp == arg.timestamp && consumerKey.equals(arg.consumerKey) && nonce.equals(arg.nonce);
-        }
-
-        public int compareTo(NonceEntry o) {
-            // sort by timestamp
-            if (timestamp < o.timestamp) {
-                return -1;
-            }
-            else if (timestamp == o.timestamp) {
-                int consumerKeyCompare = consumerKey.compareTo(o.consumerKey);
-                if (consumerKeyCompare == 0) {
-                    return nonce.compareTo(o.nonce);
-                }
-                else {
-                    return consumerKeyCompare;
-                }
-            }
-            else {
-                return 1;
-            }
-        }
-
-        @Override
-        public String toString() {
-            return timestamp + " " + consumerKey + " " + nonce;
+        public String getNonce() {
+            return nonce;
         }
     }
-}*/
+}

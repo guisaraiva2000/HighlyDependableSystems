@@ -9,6 +9,7 @@ public class User {
     private int balance;
     private LinkedList<Transfer> totalTransfers = new LinkedList<>(); // transfer = (key, amount)
     private LinkedList<Transfer> pendingTransfers = new LinkedList<>();
+    private NonceManager nonceManager = new NonceManager();
 
 
     public User(PublicKey pubKey, int balance) {
@@ -42,6 +43,14 @@ public class User {
 
     public void setPendingTransfers(LinkedList<Transfer> pendingTransfers) {
         this.pendingTransfers = pendingTransfers;
+    }
+
+    public NonceManager getNonceManager() {
+        return nonceManager;
+    }
+
+    public void setNonceManager(NonceManager nonceManager) {
+        this.nonceManager = nonceManager;
     }
 
     @Override

@@ -1,13 +1,8 @@
 package pt.tecnico.bank.server.domain;
 
 import com.google.protobuf.ByteString;
-import pt.tecnico.bank.server.domain.exception.AccountAlreadyExistsException;
-import pt.tecnico.bank.server.domain.exception.AccountDoesNotExistsException;
-import pt.tecnico.bank.server.domain.exception.NotEnoughBalanceException;
-import pt.tecnico.bank.server.domain.exception.SameAccountException;
+import pt.tecnico.bank.server.domain.exception.*;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
@@ -39,8 +34,8 @@ public class Server {
         return true;
     }
 
-    public synchronized boolean sendAmount(ByteString sourceKey, ByteString destinationKey, int amount)
-            throws AccountDoesNotExistsException, SameAccountException, NotEnoughBalanceException {
+    public synchronized boolean sendAmount(ByteString sourceKey, ByteString destinationKey, int amount, String nonce, long timestamp)
+            throws AccountDoesNotExistsException, SameAccountException, NotEnoughBalanceException, NonceAlreadyUsedException, TimestampExpiredException {
         PublicKey sourceKeyBytes = keyToBytes(sourceKey);
         PublicKey destinationKeyBytes = keyToBytes(destinationKey);
 
@@ -49,6 +44,8 @@ public class Server {
         } else*/ if (!(users.containsKey(sourceKeyBytes) && users.containsKey(destinationKeyBytes))) {
             throw new AccountDoesNotExistsException();
         }
+
+        validateNonce(sourceKeyBytes, nonce, timestamp);
 
         User sourceUser = users.get(sourceKeyBytes);
 
@@ -146,5 +143,11 @@ public class Server {
             e.printStackTrace();
         }
         return publicKey;
+    }
+
+    private void validateNonce(PublicKey publicKey, String nonce, long timestamp)
+            throws NonceAlreadyUsedException, TimestampExpiredException {
+        users.get(publicKey).getNonceManager().validateNonce(nonce, timestamp);
+        System.out.println(users.get(publicKey).getNonceManager());
     }
 }
