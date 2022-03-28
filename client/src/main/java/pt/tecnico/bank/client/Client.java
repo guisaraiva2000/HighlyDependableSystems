@@ -89,24 +89,14 @@ public class Client {
     void send_amount(String senderAccount, String receiverAccount, int amount, String password){
         try {
 
-            String nonce = RandomStringUtils.randomAlphanumeric(10);
+            String nonce = RandomStringUtils.randomAlphanumeric(12); // 96-bit recommend by NIST
             long timestamp = System.currentTimeMillis() / 1000;
 
             PublicKey origKey = getPublicKey(senderAccount);
             PublicKey destKey = getPublicKey(receiverAccount);
 
-          /*  for(int i=0; i< orig_bytes.length ; i++)
-                System.out.print(orig_bytes[i] +" ");
+            String message = origKey.toString() + destKey.toString() + amount + nonce;
 
-            for(int j=0; j< dest_bytes.length ; j++)
-                System.out.print(dest_bytes[j] +" ");*/
-
-            String message = origKey.toString() + destKey.toString() + String.valueOf(amount) + nonce;
-           
-            System.out.println(message);
-            System.out.println(String.valueOf(amount));
-            System.out.println(nonce);
-              
             // TODO
             byte[] signature = encrypt(senderAccount, message, password);
 

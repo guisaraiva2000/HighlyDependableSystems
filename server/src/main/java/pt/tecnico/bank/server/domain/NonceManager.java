@@ -3,23 +3,14 @@ package pt.tecnico.bank.server.domain;
 import pt.tecnico.bank.server.domain.exception.NonceAlreadyUsedException;
 import pt.tecnico.bank.server.domain.exception.TimestampExpiredException;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 public class NonceManager {
 
     /**
      * Contains all the nonces that were used inside the validity window sorted by timestamp.
      */
-    static final List<NonceEntry> nonces = new ArrayList<>() {
-        public boolean add(NonceEntry nonceEntry) {
-            super.add(nonceEntry);
-            nonces.sort(Comparator.comparing(NonceEntry::getTimestamp));
-            return true;
-        }
-    };
+    static final List<NonceEntry> nonces = new ArrayList<>();
 
     private volatile long lastCleaned = 0;
 
@@ -27,19 +18,16 @@ public class NonceManager {
     private long validityWindowSeconds = 60 * 10;
 
     public void validateNonce(String nonce, long timestamp) throws TimestampExpiredException, NonceAlreadyUsedException {
-        if (System.currentTimeMillis() / 1000 - timestamp > getValidityWindowSeconds()) {
+        if (System.currentTimeMillis() / 1000 - timestamp > getValidityWindowSeconds())
             throw new TimestampExpiredException();
-        }
 
         NonceEntry entry = new NonceEntry(timestamp, nonce);
 
-        synchronized (nonces) {
-            if (nonces.contains(entry))
-                throw new NonceAlreadyUsedException();
+        if (nonces.contains(entry))
+            throw new NonceAlreadyUsedException();
 
-            nonces.add(entry);
-            cleanupNonces();
-        }
+        nonces.add(entry);
+        cleanupNonces();
     }
 
     private void cleanupNonces() {
@@ -53,10 +41,10 @@ public class NonceManager {
                 if (difference > getValidityWindowSeconds()) {
                     iterator.remove();
                 } else {
-                    break; // we can break because the list is sorted
+                    break; // we can break because the list is sorted by timestamp
                 }
             }
-            // keep track of when cleanupNonces last ran
+            // keep track of last cleanup
             lastCleaned = now;
         }
     }
@@ -69,8 +57,16 @@ public class NonceManager {
         this.validityWindowSeconds = validityWindowSeconds;
     }
 
+    public String getNonces() {
+        StringBuilder builder = new StringBuilder();
+        for (NonceEntry ne : nonces) {
+            builder.append("(").append(ne.nonce).append(", ").append(ne.timestamp).append(")");
+        }
+        return builder.toString();
+    }
+
     /**
-     * Representation of a nonce
+     * Representation of a nonce -> (rand, timestamp)
      */
     static class NonceEntry {
 
@@ -88,6 +84,19 @@ public class NonceManager {
 
         public String getNonce() {
             return nonce;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NonceEntry that = (NonceEntry) o;
+            return timestamp == that.timestamp && Objects.equals(nonce, that.nonce);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(timestamp, nonce);
         }
     }
 }

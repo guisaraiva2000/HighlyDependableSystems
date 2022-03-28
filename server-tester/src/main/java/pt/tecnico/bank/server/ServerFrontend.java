@@ -1,5 +1,6 @@
 package pt.tecnico.bank.server;
 
+import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import pt.tecnico.bank.server.grpc.Server.*;
@@ -37,7 +38,11 @@ public class ServerFrontend implements Closeable {
         return stub.sendAmount(SendAmountRequest.newBuilder()
                 .setAmount(request.getAmount())
                 .setSourceKey(request.getSourceKey())
-                .setDestinationKey(request.getDestinationKey()).build());
+                .setDestinationKey(request.getDestinationKey())
+                .setSignature(request.getSignature())
+                .setNonce(request.getNonce())
+                .setTimestamp(request.getTimestamp())
+                .build());
     }
 
     public CheckAccountResponse checkAccount(CheckAccountRequest request) {

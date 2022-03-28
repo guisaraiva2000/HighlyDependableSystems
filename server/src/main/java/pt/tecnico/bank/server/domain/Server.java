@@ -43,25 +43,13 @@ public class Server {
         PublicKey sourceKey = keyToBytes(sourceKeyString);
         PublicKey destinationKey = keyToBytes(destinationKeyString);
 
-        System.out.println("NONCE LENGTH IS " + nonce.length());
-
-        /*System.out.println(timestamp);
-        System.out.println(System.currentTimeMillis());*/
-
-        /*for(PublicKey k : users.keySet())
-            System.out.println(k);*/
-
         /*if (sourceKey.equals(destinationKey)) {
             throw new SameAccountException();
         } else */if (!(users.containsKey(sourceKey) && users.containsKey(destinationKey))) {
             throw new AccountDoesNotExistsException();
         }
 
-        String message = sourceKey.toString() + destinationKey.toString() + String.valueOf(amount) + nonce;
-
-        System.out.println(message);
-        System.out.println(String.valueOf(amount));
-        System.out.println(nonce);
+        String message = sourceKey.toString() + destinationKey.toString() + amount + nonce;
 
         byte[] signatureBytes = new byte[256];
         signature.copyTo(signatureBytes, 0);
@@ -71,9 +59,7 @@ public class Server {
             return false;
         }
 
-        System.out.println("Did not fail");
-
-        //validateNonce(sourceKey, nonce, timestamp);
+        validateNonce(sourceKey, nonce, timestamp);
 
         User sourceUser = users.get(sourceKey);
 
@@ -88,7 +74,7 @@ public class Server {
         destUser.setPendingTransfers(destPendingTransfers);
         users.put(destinationKey, destUser);
 
-        System.out.println(users.get(destinationKey).toString());
+        //System.out.println(users.get(destinationKey).toString());
 
         return true;
     }
@@ -176,7 +162,7 @@ public class Server {
     private void validateNonce(PublicKey publicKey, String nonce, long timestamp)
             throws NonceAlreadyUsedException, TimestampExpiredException {
         users.get(publicKey).getNonceManager().validateNonce(nonce, timestamp);
-        System.out.println(users.get(publicKey).getNonceManager());
+        System.out.println(users.get(publicKey).getNonceManager().getNonces());
     }
 
     private boolean validateMessage(PublicKey pubKey, String message, byte[] signature)
