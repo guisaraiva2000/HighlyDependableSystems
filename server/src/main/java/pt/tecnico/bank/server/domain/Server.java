@@ -60,7 +60,6 @@ public class Server {
         // validate nonce too
         if (!validateMessage(sourceKey, message, signatureBytes))
             throw new SignatureNotValidException();
-        
 
         validateNonce(sourceKey, nonce, timestamp);
 
@@ -77,14 +76,7 @@ public class Server {
         destUser.setPendingTransfers(destPendingTransfers);
         users.put(destinationKey, destUser);
 
-
-        //String m = String.valueOf(true) + String.valueOf(Integer.parseInt(nonce)+1);
-        String m = String.valueOf(true) + String.valueOf(nonce);
-        byte[] signServer = encrypt(m);
-
-        String[] response = {"true", nonce, new String(signServer, StandardCharsets.UTF_8)};
-        //response[1] = String.valueOf(nonce+1);
-       
+        String[] response = createResponse(nonce, timestamp);
 
         System.out.println("EVERYTHING OK");
         return response;
@@ -137,12 +129,8 @@ public class Server {
         user.setPendingTransfers(pendingTransfers); // clear the list
         users.put(pubKey, user); // update user
 
-        String m = String.valueOf(true) + String.valueOf(nonce);
-        byte[] signServer = encrypt(m);
-        
-        String[] response = {"true", nonce, new String(signServer, StandardCharsets.UTF_8)};
-        //response[1] = String.valueOf(nonce+1);
-        
+        String[] response = createResponse(nonce, timestamp);
+
         System.out.println("EVERYTHING OK");
 
         return response;
@@ -236,5 +224,14 @@ public class Server {
         }
         
         return signature;
+    }
+
+    private String[] createResponse(String nonce, long timestamp) {
+        long newTimestamp = System.currentTimeMillis() / 1000;
+        String m = true + nonce + timestamp + newTimestamp;
+        byte[] signServer = encrypt(m);
+
+        return new String[]{"true", nonce, String.valueOf(timestamp),
+                String.valueOf(newTimestamp), new String(signServer, StandardCharsets.UTF_8)};
     }
 }

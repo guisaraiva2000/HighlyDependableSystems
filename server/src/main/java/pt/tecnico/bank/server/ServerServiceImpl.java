@@ -9,6 +9,7 @@ import pt.tecnico.bank.server.grpc.ServerServiceGrpc;
 import static io.grpc.Status.*;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 import com.google.protobuf.ByteString;
 
@@ -56,15 +57,17 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
         try {
             String[] r = server.sendAmount(request.getSourceKey(), request.getDestinationKey(), request.getAmount(), request.getNonce(), request.getTimestamp(), request.getSignature());
            
-            boolean ack = false;
-            if(r[0] == "true")
-                ack = true;
-
-            byte[] signature = r[2].getBytes(StandardCharsets.UTF_8);
+            boolean ack = Objects.equals(r[0], "true");
+            String nonce = r[1];
+            long recvTimestamp = Long.parseLong(r[2]);
+            long newTimestamp = Long.parseLong(r[3]);
+            byte[] signature = r[4].getBytes(StandardCharsets.UTF_8);
 
             SendAmountResponse response = SendAmountResponse.newBuilder()
                                                             .setAck(ack)
-                                                            .setNonce(r[1])
+                                                            .setNonce(nonce)
+                                                            .setRecvTimestamp(recvTimestamp)
+                                                            .setNewTimestamp(newTimestamp)
                                                             .setSignature(ByteString.copyFrom(signature))
                                                             .build();
             responseObserver.onNext(response);
@@ -103,17 +106,20 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
         try {
 
             String[] r = server.receiveAmount(request.getPublicKey(), request.getSignature(), request.getNonce(), request.getTimestamp());
-           
-            boolean ack = false;
-            if(r[0] == "true")
-                ack = true;
 
-            byte[] signature = r[2].getBytes(StandardCharsets.UTF_8);
+            boolean ack = Objects.equals(r[0], "true");
+            String nonce = r[1];
+            long recvTimestamp = Long.parseLong(r[2]);
+            long newTimestamp = Long.parseLong(r[3]);
+            byte[] signature = r[4].getBytes(StandardCharsets.UTF_8);
 
-            ReceiveAmountResponse response = ReceiveAmountResponse.newBuilder().setAck(ack)
-                                                                               /* .setNonce(r[1])
-                                                                                .setSignature(ByteString.copyFrom(signature))*/
-                                                                                .build();
+            ReceiveAmountResponse response = ReceiveAmountResponse.newBuilder()
+                                                                    .setAck(ack)
+                                                                    .setNonce(nonce)
+                                                                    .setRecvTimestamp(recvTimestamp)
+                                                                    .setNewTimestamp(newTimestamp)
+                                                                    .setSignature(ByteString.copyFrom(signature))
+                                                                    .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (AccountDoesNotExistsException e) {

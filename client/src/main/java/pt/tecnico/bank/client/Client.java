@@ -95,9 +95,8 @@ public class Client {
             PublicKey origKey = getPublicKey(senderAccount);
             PublicKey destKey = getPublicKey(receiverAccount);
 
-            String message = origKey.toString() + destKey.toString() + String.valueOf(amount) + nonce + String.valueOf(timestamp);
+            String message = origKey.toString() + destKey.toString() + amount + nonce + timestamp;
 
-            // TODO
             byte[] signature = encrypt(senderAccount, message, password);
 
             // send encrypted message instead of clear message
@@ -108,8 +107,24 @@ public class Client {
                                                                 .setNonce(nonce)
                                                                 .setTimestamp(timestamp)
                                                                 .build();
-            frontend.sendAmount(req);
-            System.out.println("Sent " + amount + " from " + senderAccount + " to " + receiverAccount);
+            SendAmountResponse response = frontend.sendAmount(req);
+
+            boolean ack = response.getAck();
+            long recvTimestamp = response.getRecvTimestamp();
+            long newTimestamp = response.getNewTimestamp();
+            String newNonce = response.getNonce();
+            ByteString newSignature = response.getSignature();
+
+            //System.out.println("Ack: " + ack + "recv " + recvTimestamp + "new " + newTimestamp + "newNonce " + newNonce);
+
+            if (ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce.equals(newNonce)) {
+                System.out.println("Sent " + amount + " from " + senderAccount + " to " + receiverAccount);
+            } else {
+                System.out.println("Invalid message from server.");
+            }
+
+            // TODO verify newSignature
+
         } catch (StatusRuntimeException e) {
             printError(e);
         } catch (Exception e){
@@ -136,7 +151,7 @@ public class Client {
 
             PublicKey key = getPublicKey(accountName);
 
-            String message = key.toString() + nonce + String.valueOf(timestamp);
+            String message = key.toString() + nonce + timestamp;
             System.out.println("MESSAGE " + message);
 
             byte[] signature = encrypt(accountName, message, password);
@@ -146,8 +161,22 @@ public class Client {
                                                                         .setNonce(nonce)
                                                                         .setTimestamp(timestamp)
                                                                         .build();
-            frontend.receiveAmount(req);
-            System.out.println("Amount deposited to your account");
+            ReceiveAmountResponse response = frontend.receiveAmount(req);
+
+            boolean ack = response.getAck();
+            long recvTimestamp = response.getRecvTimestamp();
+            long newTimestamp = response.getNewTimestamp();
+            String newNonce = response.getNonce();
+            ByteString newSignature = response.getSignature();
+
+            if (ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce.equals(newNonce)) {
+                System.out.println("Amount deposited to your account");
+            } else {
+                System.out.println("Invalid message from server.");
+            }
+
+            // TODO verify newSignature
+
         } catch (StatusRuntimeException e) {
             printError(e);
         }

@@ -1,12 +1,12 @@
 package pt.tecnico.bank.server;
 
-import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import pt.tecnico.bank.server.grpc.Server.*;
 import pt.tecnico.bank.server.grpc.ServerServiceGrpc;
 
 import java.io.Closeable;
+import java.util.concurrent.TimeUnit;
 
 
 public class ServerFrontend implements Closeable {
@@ -29,13 +29,13 @@ public class ServerFrontend implements Closeable {
     }
 
     public OpenAccountResponse openAccount(OpenAccountRequest request) {
-        return stub.openAccount(OpenAccountRequest.newBuilder()
+        return stub.withDeadlineAfter(2, TimeUnit.SECONDS).openAccount(OpenAccountRequest.newBuilder()
                 .setPublicKey(request.getPublicKey())
                 .setBalance(request.getBalance()).build());
     }
 
     public SendAmountResponse sendAmount(SendAmountRequest request) {
-        return stub.sendAmount(SendAmountRequest.newBuilder()
+        return stub.withDeadlineAfter(2, TimeUnit.SECONDS).sendAmount(SendAmountRequest.newBuilder()
                 .setAmount(request.getAmount())
                 .setSourceKey(request.getSourceKey())
                 .setDestinationKey(request.getDestinationKey())
@@ -50,7 +50,12 @@ public class ServerFrontend implements Closeable {
     }
 
     public ReceiveAmountResponse receiveAmount(ReceiveAmountRequest request) {
-        return stub.receiveAmount(ReceiveAmountRequest.newBuilder().setPublicKey(request.getPublicKey()).build());
+        return stub.receiveAmount(ReceiveAmountRequest.newBuilder()
+                .setPublicKey(request.getPublicKey())
+                .setSignature(request.getSignature())
+                .setNonce(request.getNonce())
+                .setTimestamp(request.getTimestamp())
+                .build());
     }
 
     public AuditResponse auditResponse(AuditRequest request) {

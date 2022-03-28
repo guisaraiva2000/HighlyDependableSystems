@@ -33,7 +33,9 @@ message SendAmountRequest {
 message SendAmountResponse {
   bool ack = 1;
   string nonce = 2;
-  bytes signature = 3;
+  int64 recv_timestamp = 3;
+  int64 new_timestamp = 4;
+  bytes signature = 5;
 }
 
 message CheckAccountRequest {
@@ -55,7 +57,9 @@ message ReceiveAmountRequest {
 message ReceiveAmountResponse {
   bool ack = 1;
   string nonce = 2;
-  bytes signature = 3;
+  int64 recv_timestamp = 3;
+  int64 new_timestamp = 4;
+  bytes signature = 5;
 }
 
 message AuditRequest {
