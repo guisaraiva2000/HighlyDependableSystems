@@ -95,7 +95,7 @@ public class Client {
             PublicKey origKey = getPublicKey(senderAccount);
             PublicKey destKey = getPublicKey(receiverAccount);
 
-            String message = origKey.toString() + destKey.toString() + amount + nonce;
+            String message = origKey.toString() + destKey.toString() + String.valueOf(amount) + nonce + String.valueOf(timestamp);
 
             // TODO
             byte[] signature = encrypt(senderAccount, message, password);
@@ -129,9 +129,23 @@ public class Client {
         }
     }
 
-    void receive_amount(ByteString key){
+    void receive_amount(String accountName, String password){
         try {
-            ReceiveAmountRequest req = ReceiveAmountRequest.newBuilder().setPublicKey(key).build();
+            String nonce = RandomStringUtils.randomAlphanumeric(12); // 96-bit recommend by NIST
+            long timestamp = System.currentTimeMillis() / 1000;
+
+            PublicKey key = getPublicKey(accountName);
+
+            String message = key.toString() + nonce + String.valueOf(timestamp);
+            System.out.println("MESSAGE " + message);
+
+            byte[] signature = encrypt(accountName, message, password);
+
+            ReceiveAmountRequest req = ReceiveAmountRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded()))
+                                                                        .setSignature(ByteString.copyFrom(signature))
+                                                                        .setNonce(nonce)
+                                                                        .setTimestamp(timestamp)
+                                                                        .build();
             frontend.receiveAmount(req);
             System.out.println("Amount deposited to your account");
         } catch (StatusRuntimeException e) {

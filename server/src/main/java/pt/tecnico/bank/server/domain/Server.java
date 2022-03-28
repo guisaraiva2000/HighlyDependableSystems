@@ -3,24 +3,27 @@ package pt.tecnico.bank.server.domain;
 import com.google.protobuf.ByteString;
 import pt.tecnico.bank.server.domain.exception.*;
 
-import java.security.KeyFactory;
-import java.security.NoSuchAlgorithmException;
-import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.stream.Collectors;
-
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.security.Signature;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.*;
 
 /**
  * Facade class.
  * Contains the service operations.
  */
 public class Server {
+
+    private final String SERVER_PATH = System.getProperty("user.dir") + "\\KEYS\\";
 
     private final LinkedHashMap<PublicKey, User> users = new LinkedHashMap<>();
 
@@ -38,8 +41,8 @@ public class Server {
         return true;
     }
 
-    public synchronized boolean sendAmount(ByteString sourceKeyString, ByteString destinationKeyString, int amount, String nonce, long timestamp, ByteString signature)
-            throws AccountDoesNotExistsException, SameAccountException, NotEnoughBalanceException, NonceAlreadyUsedException, TimestampExpiredException {
+    public synchronized String[] sendAmount(ByteString sourceKeyString, ByteString destinationKeyString, int amount, String nonce, long timestamp, ByteString signature)
+            throws AccountDoesNotExistsException, SameAccountException, NotEnoughBalanceException, NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException {
         PublicKey sourceKey = keyToBytes(sourceKeyString);
         PublicKey destinationKey = keyToBytes(destinationKeyString);
 
@@ -49,15 +52,15 @@ public class Server {
             throw new AccountDoesNotExistsException();
         }
 
-        String message = sourceKey.toString() + destinationKey.toString() + amount + nonce;
+        String message = sourceKey.toString() + destinationKey.toString() + String.valueOf(amount) + nonce + String.valueOf(timestamp);
 
         byte[] signatureBytes = new byte[256];
         signature.copyTo(signatureBytes, 0);
 
-        if (!validateMessage(sourceKey, message, signatureBytes)){
-            System.out.println("Not valid");
-            return false;
-        }
+        // validate nonce too
+        if (!validateMessage(sourceKey, message, signatureBytes))
+            throw new SignatureNotValidException();
+        
 
         validateNonce(sourceKey, nonce, timestamp);
 
@@ -74,9 +77,17 @@ public class Server {
         destUser.setPendingTransfers(destPendingTransfers);
         users.put(destinationKey, destUser);
 
-        //System.out.println(users.get(destinationKey).toString());
 
-        return true;
+        //String m = String.valueOf(true) + String.valueOf(Integer.parseInt(nonce)+1);
+        String m = String.valueOf(true) + String.valueOf(nonce);
+        byte[] signServer = encrypt(m);
+
+        String[] response = {"true", nonce, new String(signServer, StandardCharsets.UTF_8)};
+        //response[1] = String.valueOf(nonce+1);
+       
+
+        System.out.println("EVERYTHING OK");
+        return response;
     }
 
     public synchronized String[] checkAccount(ByteString pubKey) throws AccountDoesNotExistsException {
@@ -95,39 +106,62 @@ public class Server {
         return new String[]{ String.valueOf(users.get(pubKeyBytes).getBalance()), pendingTransfersAsString };
     }
 
-    public synchronized boolean receiveAmount(ByteString pubKey) throws AccountDoesNotExistsException {
-        PublicKey pubKeyBytes = keyToBytes(pubKey);
+    public synchronized String[] receiveAmount(ByteString pubKeyString, ByteString signature, String nonce, long timestamp) throws AccountDoesNotExistsException, NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException {
+        PublicKey pubKey = keyToBytes(pubKeyString);
 
-        if (!(users.containsKey(pubKeyBytes)))
+        if (!(users.containsKey(pubKey)))
             throw new AccountDoesNotExistsException();
 
-        User user = users.get(pubKeyBytes);
+        // timestamp is 0
+        String message = pubKey.toString() + nonce + String.valueOf(timestamp);
+        System.out.println("MESSAGE " + message);
+
+        byte[] signatureBytes = new byte[256];
+        signature.copyTo(signatureBytes, 0);
+    
+        // validate nonce too
+        if (!validateMessage(pubKey, message, signatureBytes))
+            throw new SignatureNotValidException();
+    
+        validateNonce(pubKey, nonce, timestamp);
+
+        User user = users.get(pubKey);
         LinkedList<Transfer> pendingTransfers = user.getPendingTransfers();
 
         pendingTransfers.forEach(transfer -> {
-            transferAmount(transfer.getDestination(), pubKeyBytes, -transfer.getAmount()); // take from senders
-            transferAmount(pubKeyBytes, transfer.getDestination(), transfer.getAmount()); // transfer to receiver
+            transferAmount(transfer.getDestination(), pubKey, -transfer.getAmount()); // take from senders
+            transferAmount(pubKey, transfer.getDestination(), transfer.getAmount()); // transfer to receiver
         });
 
         pendingTransfers.clear();
         user.setPendingTransfers(pendingTransfers); // clear the list
-        users.put(pubKeyBytes, user); // update user
+        users.put(pubKey, user); // update user
 
-        return true;
+        String m = String.valueOf(true) + String.valueOf(nonce);
+        byte[] signServer = encrypt(m);
+        
+        String[] response = {"true", nonce, new String(signServer, StandardCharsets.UTF_8)};
+        //response[1] = String.valueOf(nonce+1);
+        
+        System.out.println("EVERYTHING OK");
+
+        return response;
     }
 
-    public synchronized String audit(ByteString pubKey) throws AccountDoesNotExistsException {
-        PublicKey pubKeyBytes = keyToBytes(pubKey);
+    public synchronized String audit(ByteString pubKeyString) throws AccountDoesNotExistsException {
+        PublicKey pubKey = keyToBytes(pubKeyString);
 
-        if (!(users.containsKey(pubKeyBytes)))
+        if (!(users.containsKey(pubKey)))
             throw new AccountDoesNotExistsException();
 
-        LinkedList<Transfer> totalTransfers = users.get(pubKeyBytes).getTotalTransfers();
+        LinkedList<Transfer> totalTransfers = users.get(pubKey).getTotalTransfers();
 
-        if (totalTransfers != null)
-            return getTransfersAsString(totalTransfers);
-
-        return "No transfers found.";
+        if (totalTransfers == null)
+            return "No transfers waiting for acceptance";
+        
+        
+        System.out.println("EVERYTHING OK");
+        return "All pending transfers moved to account";
     }
 
     // ------------------------------------ AUX -------------------------------------
@@ -177,5 +211,30 @@ public class Server {
             e.printStackTrace();
         }
         return verified;
+    }
+
+    private byte[] encrypt(String message){
+        byte[] signature = null;
+        try{
+
+            byte[] key = Files.readAllBytes(Paths.get(SERVER_PATH + "private.key"));
+            System.out.println(SERVER_PATH + "private.key");
+            System.out.println(key.length);
+
+            PrivateKey privKey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(key));
+            
+            // SIGNATURE
+            Signature sign = Signature.getInstance("SHA256withRSA");
+            sign.initSign(privKey);
+
+            sign.update(message.getBytes(StandardCharsets.UTF_8));
+            signature = sign.sign();
+
+        } catch(Exception e){
+            e.printStackTrace();
+            System.out.println(("Error in encryption"));
+        }
+        
+        return signature;
     }
 }

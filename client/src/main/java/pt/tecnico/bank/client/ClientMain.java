@@ -83,10 +83,10 @@ public class ClientMain {
                         }
                         break;
                     case "receive":
-                        if (tokens.length == 1) {
-                            client.receive_amount(publicKey);
+                        if (tokens.length == 3) {
+                            client.receive_amount(tokens[1], tokens[2]);
                         } else {
-                            System.err.println("ERROR: Usage: receive");
+                            System.err.println("ERROR: Usage: receive %account_name% %password%");
                         }
                         break;
                     case "audit":

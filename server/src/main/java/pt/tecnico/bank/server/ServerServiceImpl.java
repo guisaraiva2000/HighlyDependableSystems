@@ -8,6 +8,10 @@ import pt.tecnico.bank.server.grpc.ServerServiceGrpc;
 
 import static io.grpc.Status.*;
 
+import java.nio.charset.StandardCharsets;
+
+import com.google.protobuf.ByteString;
+
 
 public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
 
@@ -36,7 +40,10 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void openAccount(OpenAccountRequest request, StreamObserver<OpenAccountResponse> responseObserver) {
         try {
             boolean ack = server.openAccount(request.getPublicKey(), request.getBalance());
-            OpenAccountResponse response = OpenAccountResponse.newBuilder().setAck(ack).build();
+
+            
+            OpenAccountResponse response = OpenAccountResponse.newBuilder().setAck(ack)
+                                                                            .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (AccountAlreadyExistsException e) {
@@ -47,8 +54,19 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     @Override
     public void sendAmount(SendAmountRequest request, StreamObserver<SendAmountResponse> responseObserver) {
         try {
-            boolean ack = server.sendAmount(request.getSourceKey(), request.getDestinationKey(), request.getAmount(), request.getNonce(), request.getTimestamp(), request.getSignature());
-            SendAmountResponse response = SendAmountResponse.newBuilder().setAck(ack).build();
+            String[] r = server.sendAmount(request.getSourceKey(), request.getDestinationKey(), request.getAmount(), request.getNonce(), request.getTimestamp(), request.getSignature());
+           
+            boolean ack = false;
+            if(r[0] == "true")
+                ack = true;
+
+            byte[] signature = r[2].getBytes(StandardCharsets.UTF_8);
+
+            SendAmountResponse response = SendAmountResponse.newBuilder()
+                                                            .setAck(ack)
+                                                            .setNonce(r[1])
+                                                            .setSignature(ByteString.copyFrom(signature))
+                                                            .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (AccountDoesNotExistsException e) {
@@ -61,7 +79,9 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
         } catch (TimestampExpiredException e) {
             responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
-        }
+        } catch (SignatureNotValidException e) {
+            responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
+        } 
     }
 
     @Override
@@ -81,12 +101,29 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     @Override
     public void receiveAmount(ReceiveAmountRequest request, StreamObserver<ReceiveAmountResponse> responseObserver) {
         try {
-            boolean res = server.receiveAmount(request.getPublicKey());
-            ReceiveAmountResponse response = ReceiveAmountResponse.newBuilder().setAck(res).build();
+
+            String[] r = server.receiveAmount(request.getPublicKey(), request.getSignature(), request.getNonce(), request.getTimestamp());
+           
+            boolean ack = false;
+            if(r[0] == "true")
+                ack = true;
+
+            byte[] signature = r[2].getBytes(StandardCharsets.UTF_8);
+
+            ReceiveAmountResponse response = ReceiveAmountResponse.newBuilder().setAck(ack)
+                                                                               /* .setNonce(r[1])
+                                                                                .setSignature(ByteString.copyFrom(signature))*/
+                                                                                .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (AccountDoesNotExistsException e) {
             responseObserver.onError(UNAVAILABLE.withDescription(e.getMessage()).asRuntimeException());
+        } catch (SignatureNotValidException e) {
+            responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
+        } catch (NonceAlreadyUsedException e) {
+            responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
+        } catch (TimestampExpiredException e) {
+            responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
         }
     }
 
