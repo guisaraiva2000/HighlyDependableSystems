@@ -9,6 +9,7 @@ import java.security.*;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
 import java.math.BigInteger;
@@ -69,9 +70,6 @@ public class Client {
             }
 
             byte[] encoded = pubKey.getEncoded();
-            try (FileOutputStream out = new FileOutputStream("test_client2.txt")) {
-                out.write(encoded);
-            }
 
             OpenAccountRequest req = OpenAccountRequest.newBuilder()
                                                         .setPublicKey(ByteString.copyFrom(encoded))
@@ -79,7 +77,7 @@ public class Client {
                                                         .build();
 
             frontend.openAccount(req);
-            System.out.println("Account with key " + pubKey + " created with len: " +  pubKey.getEncoded().length);
+            System.out.println("Account with name " + accountName + " created");
         } catch (StatusRuntimeException e) {
             printError(e);
         } catch (Exception e){
@@ -94,8 +92,8 @@ public class Client {
             String nonce = RandomStringUtils.randomAlphanumeric(10);
             long timestamp = System.currentTimeMillis() / 1000;
 
-            byte[] orig_bytes = getPublicKey(senderAccount).getEncoded();
-            byte[] dest_bytes = getPublicKey(receiverAccount).getEncoded();
+            PublicKey origKey = getPublicKey(senderAccount);
+            PublicKey destKey = getPublicKey(receiverAccount);
 
           /*  for(int i=0; i< orig_bytes.length ; i++)
                 System.out.print(orig_bytes[i] +" ");
@@ -103,19 +101,18 @@ public class Client {
             for(int j=0; j< dest_bytes.length ; j++)
                 System.out.print(dest_bytes[j] +" ");*/
 
-            SendMoney message = new SendMoney(
-                orig_bytes,
-                dest_bytes,
-                amount,
-                nonce
-            );
-
+            String message = origKey.toString() + destKey.toString() + String.valueOf(amount) + nonce;
+           
+            System.out.println(message);
+            System.out.println(String.valueOf(amount));
+            System.out.println(nonce);
+              
             // TODO
-            byte[] signature = encrypt(senderAccount, message.toString(), password);
+            byte[] signature = encrypt(senderAccount, message, password);
 
             // send encrypted message instead of clear message
-            SendAmountRequest req = SendAmountRequest.newBuilder().setSourceKey(ByteString.copyFrom(orig_bytes))
-                                                                .setDestinationKey(ByteString.copyFrom(dest_bytes))
+            SendAmountRequest req = SendAmountRequest.newBuilder().setSourceKey(ByteString.copyFrom(origKey.getEncoded()))
+                                                                .setDestinationKey(ByteString.copyFrom(destKey.getEncoded()))
                                                                 .setAmount(amount)
                                                                 .setSignature(ByteString.copyFrom(signature))
                                                                 .setNonce(nonce)
@@ -185,7 +182,6 @@ public class Client {
             sign.update(message.getBytes(StandardCharsets.UTF_8));
             signature = sign.sign();
 
-            
         } catch (IOException e) {
             e.printStackTrace();
         } catch(Exception e){
@@ -286,6 +282,35 @@ public class Client {
 
         return cert.getPublicKey();
 
+    }
+
+    private String messageToString(byte[] orig_bytes, byte[] dest_bytes, int amount, String nonce)
+    {
+        return orig_bytes.toString() + dest_bytes.toString() + String.valueOf(amount) + nonce;
+        /*SendMoney message = new SendMoney(
+            orig_bytes,
+            dest_bytes,
+            amount,
+            nonce
+        );*/
+    }
+
+    private PublicKey keyToBytes(ByteString pubKey) {
+        byte[] pubKeyBytes = new byte[294];
+        pubKey.copyTo(pubKeyBytes, 0);
+
+        PublicKey publicKey = null;
+        
+        try {
+            publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(pubKeyBytes));
+
+            KeyStore ks = KeyStore.getInstance("JCEKS");
+            ks.load(new FileInputStream(CLIENT_PATH + "\\keystore.jks"), "p".toCharArray());
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return publicKey;
     }
 
 }

@@ -8,6 +8,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.stream.Collectors;
@@ -37,49 +38,57 @@ public class Server {
         return true;
     }
 
-    public synchronized boolean sendAmount(ByteString sourceKey, ByteString destinationKey, int amount, String nonce, long timestamp)
+    public synchronized boolean sendAmount(ByteString sourceKeyString, ByteString destinationKeyString, int amount, String nonce, long timestamp, ByteString signature)
             throws AccountDoesNotExistsException, SameAccountException, NotEnoughBalanceException, NonceAlreadyUsedException, TimestampExpiredException {
-        PublicKey sourceKeyBytes = keyToBytes(sourceKey);
-        PublicKey destinationKeyBytes = keyToBytes(destinationKey);
+        PublicKey sourceKey = keyToBytes(sourceKeyString);
+        PublicKey destinationKey = keyToBytes(destinationKeyString);
 
-        System.out.println(timestamp);
-        System.out.println(System.currentTimeMillis());
+        System.out.println("NONCE LENGTH IS " + nonce.length());
+
+        /*System.out.println(timestamp);
+        System.out.println(System.currentTimeMillis());*/
 
         /*for(PublicKey k : users.keySet())
             System.out.println(k);*/
 
         /*if (sourceKey.equals(destinationKey)) {
             throw new SameAccountException();
-        } else */if (!(users.containsKey(sourceKeyBytes) && users.containsKey(destinationKeyBytes))) {
+        } else */if (!(users.containsKey(sourceKey) && users.containsKey(destinationKey))) {
             throw new AccountDoesNotExistsException();
         }
 
-        /*SendMoney message = new SendMoney
-        (
-            sourceyKeyBytes,
-            destinationKeyBytes,
-            amount,
-            nonce
-        );*/
+        String message = sourceKey.toString() + destinationKey.toString() + String.valueOf(amount) + nonce;
 
-        //validateMessage(sourceKeyBytes, message.toString(), request.getSignature());
+        System.out.println(message);
+        System.out.println(String.valueOf(amount));
+        System.out.println(nonce);
 
-        validateNonce(sourceKeyBytes, nonce, timestamp);
+        byte[] signatureBytes = new byte[256];
+        signature.copyTo(signatureBytes, 0);
 
-        User sourceUser = users.get(sourceKeyBytes);
+        if (!validateMessage(sourceKey, message, signatureBytes)){
+            System.out.println("Not valid");
+            return false;
+        }
+
+        System.out.println("Did not fail");
+
+        //validateNonce(sourceKey, nonce, timestamp);
+
+        User sourceUser = users.get(sourceKey);
 
         if (sourceUser.getBalance() < amount)
             throw new NotEnoughBalanceException();
 
         // TODO check if it was the source user that made the transfer ?????
 
-        User destUser = users.get(destinationKeyBytes);
+        User destUser = users.get(destinationKey);
         LinkedList<Transfer> destPendingTransfers = destUser.getPendingTransfers();
-        destPendingTransfers.add(new Transfer(sourceKeyBytes, amount)); // added to the dest pending transfers list
+        destPendingTransfers.add(new Transfer(sourceKey, amount)); // added to the dest pending transfers list
         destUser.setPendingTransfers(destPendingTransfers);
-        users.put(destinationKeyBytes, destUser);
+        users.put(destinationKey, destUser);
 
-        System.out.println(users.get(destinationKeyBytes).toString());
+        System.out.println(users.get(destinationKey).toString());
 
         return true;
     }
@@ -170,17 +179,17 @@ public class Server {
         System.out.println(users.get(publicKey).getNonceManager());
     }
 
-    private boolean validateMessage(byte[] pubKey, String message, byte[] sign)
+    private boolean validateMessage(PublicKey pubKey, String message, byte[] signature)
     {
-       /* try{
-            Signature signature = Signature.getInstance("SHA256withRSA");
-            signature.initVerify(pubKey);
-            signature.update(message.getBytes(StandardCharsets.UTF_8));
+        boolean verified = true;
+        try{
+            Signature sign = Signature.getInstance("SHA256withRSA");
+            sign.initVerify(pubKey);
+            sign.update(message.getBytes(StandardCharsets.UTF_8));
+            verified = sign.verify(signature);
         } catch(Exception e){
             e.printStackTrace();
         }
-
-        return signature.verify(sign);*/
-        return true;
+        return verified;
     }
 }

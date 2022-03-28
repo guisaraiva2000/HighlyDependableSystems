@@ -47,7 +47,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     @Override
     public void sendAmount(SendAmountRequest request, StreamObserver<SendAmountResponse> responseObserver) {
         try {
-            boolean ack = server.sendAmount(request.getSourceKey(), request.getDestinationKey(), request.getAmount(), request.getNonce(), request.getTimestamp());
+            boolean ack = server.sendAmount(request.getSourceKey(), request.getDestinationKey(), request.getAmount(), request.getNonce(), request.getTimestamp(), request.getSignature());
             SendAmountResponse response = SendAmountResponse.newBuilder().setAck(ack).build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
