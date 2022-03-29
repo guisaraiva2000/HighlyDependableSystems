@@ -74,7 +74,7 @@ public class Server {
         destUser.setPendingTransfers(destPendingTransfers);
         users.put(destinationKey, destUser);
 
-        return createResponse(nonce, timestamp);
+        return createResponse("true", nonce, timestamp);
     }
 
     public synchronized String[] checkAccount(ByteString pubKey) throws AccountDoesNotExistsException {
@@ -90,7 +90,8 @@ public class Server {
             pendingTransfersAsString = getTransfersAsString(pendingTransfers);
         }
 
-        return new String[]{ String.valueOf(users.get(pubKeyBytes).getBalance()), pendingTransfersAsString };
+        String message = String.valueOf(users.get(pubKeyBytes).getBalance()) + pendingTransfersAsString ;
+        return new String[]{ String.valueOf(users.get(pubKeyBytes).getBalance()), pendingTransfersAsString , new String(encrypt(message), StandardCharsets.UTF_8)};
     }
 
     public synchronized String[] receiveAmount(ByteString pubKeyString, ByteString signature, long nonce, long timestamp) throws AccountDoesNotExistsException, NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException {
@@ -108,7 +109,7 @@ public class Server {
         if (!validateMessage(pubKey, message, signatureBytes))
             throw new SignatureNotValidException();
     
-        validateNonce(pubKey, nonce, timestamp);
+        //validateNonce(pubKey, nonce, timestamp);
 
         User user = users.get(pubKey);
         LinkedList<Transfer> pendingTransfers = user.getPendingTransfers();
@@ -122,10 +123,10 @@ public class Server {
         user.setPendingTransfers(pendingTransfers); // clear the list
         users.put(pubKey, user); // update user
 
-        return createResponse(nonce, timestamp);
+        return createResponse("true", nonce, timestamp);
     }
 
-    public synchronized String audit(ByteString pubKeyString) throws AccountDoesNotExistsException {
+    public synchronized String[] audit(ByteString pubKeyString) throws AccountDoesNotExistsException {
         PublicKey pubKey = keyToBytes(pubKeyString);
 
         if (!(users.containsKey(pubKey)))
@@ -134,9 +135,10 @@ public class Server {
         LinkedList<Transfer> totalTransfers = users.get(pubKey).getTotalTransfers();
 
         if (totalTransfers == null)
-            return "No transfers waiting for acceptance";
+            return new String[]{"No transfers waiting to be acepted", new String(encrypt("No transfers waiting to be acepted"), StandardCharsets.UTF_8)};
+        
 
-        return getTransfersAsString(totalTransfers);
+        return new String[]{getTransfersAsString(totalTransfers), new String(encrypt(getTransfersAsString(totalTransfers)), StandardCharsets.UTF_8)};
     }
 
     // ------------------------------------ AUX -------------------------------------
@@ -209,12 +211,12 @@ public class Server {
         return signature;
     }
 
-    private String[] createResponse(long nonce, long timestamp) {
+    private String[] createResponse(String message, long nonce, long timestamp) {
         long newTimestamp = System.currentTimeMillis() / 1000;
-        String m = true + String.valueOf(nonce + 1) + timestamp + newTimestamp;
+        String m = message + String.valueOf(nonce + 1) + timestamp + newTimestamp;
         byte[] signServer = encrypt(m);
 
-        return new String[]{"true", String.valueOf(nonce + 1), String.valueOf(timestamp),
+        return new String[]{message, String.valueOf(nonce + 1), String.valueOf(timestamp),
                 String.valueOf(newTimestamp), new String(signServer, StandardCharsets.UTF_8)};
     }
 }

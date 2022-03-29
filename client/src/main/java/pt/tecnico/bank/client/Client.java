@@ -78,6 +78,14 @@ public class Client {
                 ks.store(fos, password.toCharArray());
             }
 
+            try (FileOutputStream fos = new FileOutputStream(client_path + "public.key")) {
+                fos.write(pubKey.getEncoded());
+            }
+
+            try (FileOutputStream fos = new FileOutputStream(client_path + "private.key")) {
+                fos.write(privKey.getEncoded());
+            }
+
             byte[] encoded = pubKey.getEncoded();
 
             OpenAccountRequest req = OpenAccountRequest.newBuilder()
@@ -122,11 +130,21 @@ public class Client {
             long recvTimestamp = response.getRecvTimestamp();
             long newTimestamp = response.getNewTimestamp();
             long newNonce = response.getNonce();
-            ByteString newSignature = response.getSignature();
+            ByteString sig = response.getSignature();
+            /*byte[] newSignature = new byte[256];
+            sig.copyTo(newSignature,0);*/
+
+            try(FileOutputStream fos = new FileOutputStream(System.getProperty("user.dir") + "\\m.txt")){
+                fos.write(sig.toByteArray());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 
             //System.out.println("Ack: " + ack + "recv " + recvTimestamp + "new " + newTimestamp + "newNonce " + newNonce);
+            String newMessage = String.valueOf(ack) + String.valueOf(newNonce) + timestamp + newTimestamp;
 
-            if (ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce) {
+            //if (validateResponse(getPublicKey("server"), newMessage, newSignature, ack, recvTimestamp, newTimestamp, timestamp, nonce, newNonce)) {
+            if(ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce){
                 System.out.println("Sent " + amount + " from " + senderAccount + " to " + receiverAccount);
             } else {
                 System.out.println("Invalid message from server.");
@@ -138,6 +156,7 @@ public class Client {
             printError(e);
         } catch (Exception e){
             System.out.println("Error while sending amount");
+            e.printStackTrace();
         }
     }
 
@@ -338,12 +357,26 @@ public class Client {
             publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(pubKeyBytes));
 
             KeyStore ks = KeyStore.getInstance("JCEKS");
-            ks.load(new FileInputStream(client_path + username + ".jks"), "p".toCharArray());
+            ks.load(new FileInputStream(client_path + username + ".cert"), "p".toCharArray());
 
         } catch (Exception e) {
             e.printStackTrace();
         }
         return publicKey;
+    }
+
+    private boolean validateResponse(PublicKey pubKey, String message, byte[] signature, boolean ack, long recvTimestamp, long newTimestamp, long timestamp, long nonce, long newNonce)
+    {
+        boolean verified = true;
+        try{
+            Signature sign = Signature.getInstance("SHA256withRSA");
+            sign.initVerify(pubKey);
+            sign.update(message.getBytes(StandardCharsets.UTF_8));
+            verified = sign.verify(signature);
+        } catch(Exception e){
+            e.printStackTrace();
+        }
+        return ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce && verified;
     }
 
 }

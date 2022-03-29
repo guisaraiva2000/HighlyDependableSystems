@@ -45,6 +45,7 @@ message CheckAccountRequest {
 message CheckAccountResponse {
   int32 balance = 1;
   string pendent_transfers = 2;
+  bytes signature = 3;
 }
 
 message ReceiveAmountRequest {
@@ -68,6 +69,7 @@ message AuditRequest {
 
 message AuditResponse {
   string transfer_history = 1;
+  bytes signature = 2;
 }
 
 service ServerService {
