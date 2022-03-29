@@ -36,12 +36,17 @@ import java.security.spec.X509EncodedKeySpec;
 
 public class Client {
 
+    private String username;
+
     private final ServerFrontend frontend;
-    private final String CLIENT_PATH = System.getProperty("user.dir");
     private final String CERT_PATH = System.getProperty("user.dir") + "\\CERTIFICATES\\";
 
-    public Client(ServerFrontend frontend){
+    private String client_path;
+
+    public Client(ServerFrontend frontend, String username){
         this.frontend = frontend;
+        this.username = username;
+        client_path = System.getProperty("user.dir") + "\\CLIENTS\\" + username + "\\";
     }
 
     void open_account(String accountName, int amount, String password){
@@ -56,15 +61,20 @@ public class Client {
             Key privKey = rsaKeyPair.getPrivate();
 
             KeyStore ks = KeyStore.getInstance("JCEKS");
-            ks.load(null, password.toCharArray());
 
-           // ks.load(new FileInputStream(CLIENT_PATH + "\\" + ClientMain.getUsername() + ".jks"), password.toCharArray());
+            File file = new File(client_path + username + ".jks");
+
+            if(!file.exists())
+                ks.load(null, password.toCharArray());
+            else
+                ks.load(new FileInputStream(file), password.toCharArray());
+
             X509Certificate[] certificateChain = new X509Certificate[1];
             certificateChain[0] = selfSign(rsaKeyPair, accountName);
  
             ks.setKeyEntry(accountName, privKey, password.toCharArray(), certificateChain);
 
-            try (FileOutputStream fos = new FileOutputStream(CLIENT_PATH + "\\" + ClientMain.getUsername() + ".jks")) {
+            try (FileOutputStream fos = new FileOutputStream(file)) {
                 ks.store(fos, password.toCharArray());
             }
 
@@ -131,9 +141,10 @@ public class Client {
         }
     }
 
-    void check_account(ByteString key){
+    void check_account(String accountName){
         try {
-            CheckAccountRequest req = CheckAccountRequest.newBuilder().setPublicKey(key).build();
+            PublicKey key = getPublicKey(accountName);
+            CheckAccountRequest req = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded())).build();
             CheckAccountResponse res = frontend.checkAccount(req);
 
             System.out.println("Account Status:\n" + "Balance: " + res.getBalance() +
@@ -181,9 +192,10 @@ public class Client {
         }
     }
     
-    void audit(ByteString key){
+    void audit(String accountName){
         try {
-            AuditRequest req = AuditRequest.newBuilder().setPublicKey(key).build();
+            PublicKey key = getPublicKey(accountName);
+            AuditRequest req = AuditRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded())).build();
             AuditResponse res = frontend.auditResponse(req);
             System.out.println("Total tranfers:\n" + res.getTransferHistory());
         } catch (StatusRuntimeException e) {
@@ -203,7 +215,7 @@ public class Client {
         byte[] signature = null;
         try{
             KeyStore ks = KeyStore.getInstance("JCEKS");
-            ks.load(new FileInputStream(CLIENT_PATH + "\\" + ClientMain.getUsername() +".jks"), password.toCharArray());
+            ks.load(new FileInputStream(client_path + username +".jks"), password.toCharArray());
 
             PrivateKey privKey = (PrivateKey) ks.getKey(alias, password.toCharArray());
 
@@ -228,7 +240,7 @@ public class Client {
         String decryptedMessage = "";
 
         try {
-            File publicKeyFile = new File(CLIENT_PATH + "\\public.txt");
+            File publicKeyFile = new File(client_path+ "public.txt");
             byte[] publicKeyBytes = Files.readAllBytes(publicKeyFile.toPath());
 
             KeyFactory keyFactory = KeyFactory.getInstance("RSA");
@@ -337,7 +349,7 @@ public class Client {
             publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(pubKeyBytes));
 
             KeyStore ks = KeyStore.getInstance("JCEKS");
-            ks.load(new FileInputStream(CLIENT_PATH + "\\" + ClientMain.getUsername() + ".jks"), "p".toCharArray());
+            ks.load(new FileInputStream(client_path + username + ".jks"), "p".toCharArray());
 
         } catch (Exception e) {
             e.printStackTrace();

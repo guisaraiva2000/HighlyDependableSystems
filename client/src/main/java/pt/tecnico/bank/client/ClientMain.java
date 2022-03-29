@@ -5,17 +5,12 @@ import io.grpc.StatusRuntimeException;
 import pt.tecnico.bank.server.ServerFrontend;
 
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.FileReader;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.Scanner;
 
 public class ClientMain {
     
-    private final static String USER_PATH = System.getProperty("user.dir") + "\\users.txt";
+    private final static String USER_PATH = System.getProperty("user.dir") + "\\CLIENTS\\users.txt";
     private static String username = "";
     public static void main(String[] args) {
         
@@ -26,19 +21,16 @@ public class ClientMain {
 
         try {
             frontend = new ServerFrontend();
-            client = new Client(frontend);
+           // client = new Client(frontend);
         } catch (Exception e) {
             System.out.println("Caught exception with description: " + e.getMessage());
             return;
         }
 
-        ByteString publicKey = ByteString.copyFromUtf8("public"); //TODO create key pair here ???
-
         Scanner sin = new Scanner(System.in);
         String input;
         String[] tokens;
         boolean loggedIn = false;
-
         
         try {
             while(!loggedIn){
@@ -62,14 +54,21 @@ public class ClientMain {
                 }
                 reader.close();
 
+                if(username.equals("")){
+                    System.out.println("No user with that username");
+                    break;
+                }
+
                 System.out.print("Password: ");
                 System.out.flush();
                 input = sin.nextLine();
 
-                if(password.equals(input))
+                if(password.equals(input) && !input.equals(""))
                     loggedIn = true;
             
                 while(loggedIn){
+                    client = new Client(frontend, username);
+
                     System.out.print("> ");
                     System.out.flush();
                     input = sin.nextLine();
@@ -107,8 +106,8 @@ public class ClientMain {
                             }
                             break;
                         case "check":
-                            if (tokens.length == 1) {
-                                client.check_account(publicKey);
+                            if (tokens.length == 2) {
+                                client.check_account(tokens[1]);
                             } else {
                                 System.err.println("ERROR: Usage: check");
                             }
@@ -121,8 +120,8 @@ public class ClientMain {
                             }
                             break;
                         case "audit":
-                            if (tokens.length == 1) {
-                                client.audit(publicKey);
+                            if (tokens.length == 2) {
+                                client.audit(tokens[1]);
                             } else {
                                 System.err.println("ERROR: Usage: audit");
                             }
@@ -136,6 +135,8 @@ public class ClientMain {
                     }
                 }
             }
+
+            sin.close();
         } catch (StatusRuntimeException e) {
             System.out.println("Caught exception with description: " + e.getStatus().getDescription());
         } catch (Exception e){
