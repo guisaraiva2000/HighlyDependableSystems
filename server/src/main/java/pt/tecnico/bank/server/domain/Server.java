@@ -6,12 +6,9 @@ import pt.tecnico.bank.server.domain.exception.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.stream.Collectors;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -206,8 +203,7 @@ public class Server {
         try{
 
             byte[] key = Files.readAllBytes(Paths.get(SERVER_PATH + "private.key"));
-            System.out.println(SERVER_PATH + "private.key");
-            System.out.println(key.length);
+        
 
             PrivateKey privKey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(key));
             

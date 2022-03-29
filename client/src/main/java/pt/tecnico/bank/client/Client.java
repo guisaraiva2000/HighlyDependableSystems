@@ -37,7 +37,6 @@ import java.security.spec.X509EncodedKeySpec;
 public class Client {
 
     private final ServerFrontend frontend;
-    private final String KEY_STORE = "keystore";
     private final String CLIENT_PATH = System.getProperty("user.dir");
     private final String CERT_PATH = System.getProperty("user.dir") + "\\CERTIFICATES\\";
 
@@ -59,13 +58,13 @@ public class Client {
             KeyStore ks = KeyStore.getInstance("JCEKS");
             ks.load(null, password.toCharArray());
 
-           // ks.load(new FileInputStream(CLIENT_PATH + "\\keystore.jks"), password.toCharArray());
+           // ks.load(new FileInputStream(CLIENT_PATH + "\\" + ClientMain.getUsername() + ".jks"), password.toCharArray());
             X509Certificate[] certificateChain = new X509Certificate[1];
             certificateChain[0] = selfSign(rsaKeyPair, accountName);
  
             ks.setKeyEntry(accountName, privKey, password.toCharArray(), certificateChain);
 
-            try (FileOutputStream fos = new FileOutputStream(CLIENT_PATH + "\\keystore.jks")) {
+            try (FileOutputStream fos = new FileOutputStream(CLIENT_PATH + "\\" + ClientMain.getUsername() + ".jks")) {
                 ks.store(fos, password.toCharArray());
             }
 
@@ -204,7 +203,7 @@ public class Client {
         byte[] signature = null;
         try{
             KeyStore ks = KeyStore.getInstance("JCEKS");
-            ks.load(new FileInputStream(CLIENT_PATH + "\\keystore.jks"), password.toCharArray());
+            ks.load(new FileInputStream(CLIENT_PATH + "\\" + ClientMain.getUsername() +".jks"), password.toCharArray());
 
             PrivateKey privKey = (PrivateKey) ks.getKey(alias, password.toCharArray());
 
@@ -338,7 +337,7 @@ public class Client {
             publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(pubKeyBytes));
 
             KeyStore ks = KeyStore.getInstance("JCEKS");
-            ks.load(new FileInputStream(CLIENT_PATH + "\\keystore.jks"), "p".toCharArray());
+            ks.load(new FileInputStream(CLIENT_PATH + "\\" + ClientMain.getUsername() + ".jks"), "p".toCharArray());
 
         } catch (Exception e) {
             e.printStackTrace();
