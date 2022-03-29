@@ -34,7 +34,7 @@ public class ClientMain {
 
         try {
             while(!loggedIn){
-                System.out.println("Login to use bank application");
+                System.out.println("Login to use bank application or press ENTER to leave.");
                 System.out.print("Username: ");
                 System.out.flush();
                 input = sin.nextLine();
@@ -54,10 +54,8 @@ public class ClientMain {
                 }
                 reader.close();
 
-                if(username.equals("")){
-                    System.out.println("No user with that username");
+                if(username.equals(""))
                     break;
-                }
 
                 System.out.print("Password: ");
                 System.out.flush();

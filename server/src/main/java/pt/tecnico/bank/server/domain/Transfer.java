@@ -30,9 +30,6 @@ public  class Transfer {
 
     @Override
     public String toString() {
-        return "{" +
-                "destination=" + destination +
-                ", amount=" + amount +
-                '}';
+        return amount < 0 ? "- Sent: " + (-amount) : "- Received: " + amount;
     }
 }

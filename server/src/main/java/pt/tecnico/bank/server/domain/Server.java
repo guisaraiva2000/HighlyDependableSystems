@@ -38,14 +38,15 @@ public class Server {
         return true;
     }
 
+    //TODO fix negative balance
     public synchronized String[] sendAmount(ByteString sourceKeyString, ByteString destinationKeyString, int amount, long nonce, long timestamp, ByteString signature)
             throws AccountDoesNotExistsException, SameAccountException, NotEnoughBalanceException, NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException {
         PublicKey sourceKey = keyToBytes(sourceKeyString);
         PublicKey destinationKey = keyToBytes(destinationKeyString);
 
-        /*if (sourceKey.equals(destinationKey)) {
+        if (sourceKey.equals(destinationKey)) {
             throw new SameAccountException();
-        } else */if (!(users.containsKey(sourceKey) && users.containsKey(destinationKey))) {
+        } else if (!(users.containsKey(sourceKey) && users.containsKey(destinationKey))) {
             throw new AccountDoesNotExistsException();
         }
 
@@ -99,7 +100,6 @@ public class Server {
             throw new AccountDoesNotExistsException();
 
         String message = pubKey.toString() + nonce + timestamp;
-        System.out.println("MESSAGE " + message);
 
         byte[] signatureBytes = new byte[256];
         signature.copyTo(signatureBytes, 0);

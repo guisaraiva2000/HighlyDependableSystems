@@ -147,8 +147,9 @@ public class Client {
             CheckAccountRequest req = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded())).build();
             CheckAccountResponse res = frontend.checkAccount(req);
 
-            System.out.println("Account Status:\n" + "Balance: " + res.getBalance() +
-                    "\nPending transfers: " + res.getPendentTransfers() );
+            System.out.println("Account Status:\n\t" +
+                                    "- Balance: " + res.getBalance() +
+                                    "\n\t- Pending transfers:" + res.getPendentTransfers().replaceAll("-", "\n\t\t-"));
         } catch (StatusRuntimeException e) {
             printError(e);
         }
@@ -162,7 +163,6 @@ public class Client {
             PublicKey key = getPublicKey(accountName);
 
             String message = key.toString() + nonce + timestamp;
-            System.out.println("MESSAGE " + message);
 
             byte[] signature = encrypt(accountName, message, password);
 
@@ -198,7 +198,7 @@ public class Client {
             PublicKey key = getPublicKey(accountName);
             AuditRequest req = AuditRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded())).build();
             AuditResponse res = frontend.auditResponse(req);
-            System.out.println("Total tranfers:\n" + res.getTransferHistory());
+            System.out.println("Total transfers:" + res.getTransferHistory().replaceAll("-", "\n\t-"));
         } catch (StatusRuntimeException e) {
             printError(e);
         }

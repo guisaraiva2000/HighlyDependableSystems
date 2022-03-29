@@ -17,7 +17,11 @@ public class ServerFrontend implements Closeable {
      * Creates a frontend that contacts the only replica.
      */
     public ServerFrontend() {
-        this.channel = ManagedChannelBuilder.forAddress("localhost", 8080).usePlaintext().build();
+        this.channel = ManagedChannelBuilder.forAddress("localhost", 8080)
+                                            .enableRetry()
+                                            .maxRetryAttempts(3) // avoid drops
+                                            .usePlaintext()
+                                            .build();
         this.stub = ServerServiceGrpc.newBlockingStub(this.channel);
     }
 
