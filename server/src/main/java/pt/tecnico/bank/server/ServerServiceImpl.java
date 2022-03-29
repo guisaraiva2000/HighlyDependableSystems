@@ -1,5 +1,7 @@
 package pt.tecnico.bank.server;
 
+import io.grpc.Context;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import pt.tecnico.bank.server.domain.Server;
 import pt.tecnico.bank.server.domain.exception.*;
@@ -58,7 +60,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             String[] r = server.sendAmount(request.getSourceKey(), request.getDestinationKey(), request.getAmount(), request.getNonce(), request.getTimestamp(), request.getSignature());
            
             boolean ack = Objects.equals(r[0], "true");
-            String nonce = r[1];
+            long nonce = Long.parseLong(r[1]);
             long recvTimestamp = Long.parseLong(r[2]);
             long newTimestamp = Long.parseLong(r[3]);
             byte[] signature = r[4].getBytes(StandardCharsets.UTF_8);
@@ -108,7 +110,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             String[] r = server.receiveAmount(request.getPublicKey(), request.getSignature(), request.getNonce(), request.getTimestamp());
 
             boolean ack = Objects.equals(r[0], "true");
-            String nonce = r[1];
+            long nonce = Long.parseLong(r[1]);
             long recvTimestamp = Long.parseLong(r[2]);
             long newTimestamp = Long.parseLong(r[3]);
             byte[] signature = r[4].getBytes(StandardCharsets.UTF_8);

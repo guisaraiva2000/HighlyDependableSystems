@@ -36,12 +36,12 @@ import java.security.spec.X509EncodedKeySpec;
 
 public class Client {
 
-    private String username;
+    private final String username;
 
     private final ServerFrontend frontend;
     private final String CERT_PATH = System.getProperty("user.dir") + "\\CERTIFICATES\\";
 
-    private String client_path;
+    private final String client_path;
 
     public Client(ServerFrontend frontend, String username){
         this.frontend = frontend;
@@ -71,7 +71,7 @@ public class Client {
 
             X509Certificate[] certificateChain = new X509Certificate[1];
             certificateChain[0] = selfSign(rsaKeyPair, accountName);
- 
+
             ks.setKeyEntry(accountName, privKey, password.toCharArray(), certificateChain);
 
             try (FileOutputStream fos = new FileOutputStream(file)) {
@@ -81,9 +81,9 @@ public class Client {
             byte[] encoded = pubKey.getEncoded();
 
             OpenAccountRequest req = OpenAccountRequest.newBuilder()
-                                                        .setPublicKey(ByteString.copyFrom(encoded))
-                                                        .setBalance(amount)
-                                                        .build();
+                    .setPublicKey(ByteString.copyFrom(encoded))
+                    .setBalance(amount)
+                    .build();
 
             frontend.openAccount(req);
             System.out.println("Account with name " + accountName + " created");
@@ -98,7 +98,7 @@ public class Client {
     void send_amount(String senderAccount, String receiverAccount, int amount, String password){
         try {
 
-            String nonce = RandomStringUtils.randomAlphanumeric(12); // 96-bit recommend by NIST
+            long nonce = new SecureRandom().nextLong(); // 96-bit recommend by NIST
             long timestamp = System.currentTimeMillis() / 1000;
 
             PublicKey origKey = getPublicKey(senderAccount);
@@ -110,23 +110,23 @@ public class Client {
 
             // send encrypted message instead of clear message
             SendAmountRequest req = SendAmountRequest.newBuilder().setSourceKey(ByteString.copyFrom(origKey.getEncoded()))
-                                                                .setDestinationKey(ByteString.copyFrom(destKey.getEncoded()))
-                                                                .setAmount(amount)
-                                                                .setSignature(ByteString.copyFrom(signature))
-                                                                .setNonce(nonce)
-                                                                .setTimestamp(timestamp)
-                                                                .build();
+                    .setDestinationKey(ByteString.copyFrom(destKey.getEncoded()))
+                    .setAmount(amount)
+                    .setSignature(ByteString.copyFrom(signature))
+                    .setNonce(nonce)
+                    .setTimestamp(timestamp)
+                    .build();
             SendAmountResponse response = frontend.sendAmount(req);
 
             boolean ack = response.getAck();
             long recvTimestamp = response.getRecvTimestamp();
             long newTimestamp = response.getNewTimestamp();
-            String newNonce = response.getNonce();
+            long newNonce = response.getNonce();
             ByteString newSignature = response.getSignature();
 
             //System.out.println("Ack: " + ack + "recv " + recvTimestamp + "new " + newTimestamp + "newNonce " + newNonce);
 
-            if (ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce.equals(newNonce)) {
+            if (ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce) {
                 System.out.println("Sent " + amount + " from " + senderAccount + " to " + receiverAccount);
             } else {
                 System.out.println("Invalid message from server.");
@@ -156,7 +156,7 @@ public class Client {
 
     void receive_amount(String accountName, String password){
         try {
-            String nonce = RandomStringUtils.randomAlphanumeric(12); // 96-bit recommend by NIST
+            long nonce = new SecureRandom().nextLong();
             long timestamp = System.currentTimeMillis() / 1000;
 
             PublicKey key = getPublicKey(accountName);
@@ -166,20 +166,21 @@ public class Client {
 
             byte[] signature = encrypt(accountName, message, password);
 
-            ReceiveAmountRequest req = ReceiveAmountRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded()))
-                                                                        .setSignature(ByteString.copyFrom(signature))
-                                                                        .setNonce(nonce)
-                                                                        .setTimestamp(timestamp)
-                                                                        .build();
+            ReceiveAmountRequest req = ReceiveAmountRequest.newBuilder()
+                    .setPublicKey(ByteString.copyFrom(key.getEncoded()))
+                    .setSignature(ByteString.copyFrom(signature))
+                    .setNonce(nonce)
+                    .setTimestamp(timestamp)
+                    .build();
             ReceiveAmountResponse response = frontend.receiveAmount(req);
 
             boolean ack = response.getAck();
             long recvTimestamp = response.getRecvTimestamp();
             long newTimestamp = response.getNewTimestamp();
-            String newNonce = response.getNonce();
+            long newNonce = response.getNonce();
             ByteString newSignature = response.getSignature();
 
-            if (ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce.equals(newNonce)) {
+            if (ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce) {
                 System.out.println("Amount deposited to your account");
             } else {
                 System.out.println("Invalid message from server.");
@@ -191,7 +192,7 @@ public class Client {
             printError(e);
         }
     }
-    
+
     void audit(String accountName){
         try {
             PublicKey key = getPublicKey(accountName);
@@ -232,7 +233,7 @@ public class Client {
             e.printStackTrace();
             System.out.println(("Error in encryption"));
         }
-        
+
         return signature;
     }
 
@@ -288,28 +289,16 @@ public class Client {
             certificate = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certBuilder.build(contentSigner));
 
             byte[] buf = certificate.getEncoded();
-    
-            File file = new File(CERT_PATH + subjectDN + ".cert"); 
+
+            File file = new File(CERT_PATH + subjectDN + ".cert");
             file.createNewFile();
             try (FileOutputStream out = new FileOutputStream(file)) {
                 out.write(buf);
             }
-
         } catch (Exception e){
             e.printStackTrace();
         }
-
-
         return certificate;
-    }
-
-    private String createRandomNonce() 
-    {
-        final byte[] ar = new byte[48];
-        new SecureRandom().nextBytes(ar);
-        final String nonce = new String(java.util.Base64.getUrlEncoder().withoutPadding().encode(ar), StandardCharsets.UTF_8);
-        Arrays.fill(ar, (byte) 0);
-        return nonce;
     }
 
     private PublicKey getPublicKey(String alias)
@@ -344,7 +333,7 @@ public class Client {
         pubKey.copyTo(pubKeyBytes, 0);
 
         PublicKey publicKey = null;
-        
+
         try {
             publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(pubKeyBytes));
 

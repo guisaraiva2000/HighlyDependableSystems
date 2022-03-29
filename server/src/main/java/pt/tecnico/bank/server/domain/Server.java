@@ -38,7 +38,7 @@ public class Server {
         return true;
     }
 
-    public synchronized String[] sendAmount(ByteString sourceKeyString, ByteString destinationKeyString, int amount, String nonce, long timestamp, ByteString signature)
+    public synchronized String[] sendAmount(ByteString sourceKeyString, ByteString destinationKeyString, int amount, long nonce, long timestamp, ByteString signature)
             throws AccountDoesNotExistsException, SameAccountException, NotEnoughBalanceException, NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException {
         PublicKey sourceKey = keyToBytes(sourceKeyString);
         PublicKey destinationKey = keyToBytes(destinationKeyString);
@@ -73,10 +73,7 @@ public class Server {
         destUser.setPendingTransfers(destPendingTransfers);
         users.put(destinationKey, destUser);
 
-        String[] response = createResponse(nonce, timestamp);
-
-        System.out.println("EVERYTHING OK");
-        return response;
+        return createResponse(nonce, timestamp);
     }
 
     public synchronized String[] checkAccount(ByteString pubKey) throws AccountDoesNotExistsException {
@@ -95,14 +92,13 @@ public class Server {
         return new String[]{ String.valueOf(users.get(pubKeyBytes).getBalance()), pendingTransfersAsString };
     }
 
-    public synchronized String[] receiveAmount(ByteString pubKeyString, ByteString signature, String nonce, long timestamp) throws AccountDoesNotExistsException, NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException {
+    public synchronized String[] receiveAmount(ByteString pubKeyString, ByteString signature, long nonce, long timestamp) throws AccountDoesNotExistsException, NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException {
         PublicKey pubKey = keyToBytes(pubKeyString);
 
         if (!(users.containsKey(pubKey)))
             throw new AccountDoesNotExistsException();
 
-        // timestamp is 0
-        String message = pubKey.toString() + nonce + String.valueOf(timestamp);
+        String message = pubKey.toString() + nonce + timestamp;
         System.out.println("MESSAGE " + message);
 
         byte[] signatureBytes = new byte[256];
@@ -126,11 +122,7 @@ public class Server {
         user.setPendingTransfers(pendingTransfers); // clear the list
         users.put(pubKey, user); // update user
 
-        String[] response = createResponse(nonce, timestamp);
-
-        System.out.println("EVERYTHING OK");
-
-        return response;
+        return createResponse(nonce, timestamp);
     }
 
     public synchronized String audit(ByteString pubKeyString) throws AccountDoesNotExistsException {
@@ -143,10 +135,8 @@ public class Server {
 
         if (totalTransfers == null)
             return "No transfers waiting for acceptance";
-        
-        
-        System.out.println("EVERYTHING OK");
-        return "All pending transfers moved to account";
+
+        return getTransfersAsString(totalTransfers);
     }
 
     // ------------------------------------ AUX -------------------------------------
@@ -178,7 +168,7 @@ public class Server {
         return publicKey;
     }
 
-    private void validateNonce(PublicKey publicKey, String nonce, long timestamp)
+    private void validateNonce(PublicKey publicKey, long nonce, long timestamp)
             throws NonceAlreadyUsedException, TimestampExpiredException {
         users.get(publicKey).getNonceManager().validateNonce(nonce, timestamp);
         System.out.println(users.get(publicKey).getNonceManager().getNonces());
@@ -201,9 +191,7 @@ public class Server {
     private byte[] encrypt(String message){
         byte[] signature = null;
         try{
-
             byte[] key = Files.readAllBytes(Paths.get(SERVER_PATH + "private.key"));
-        
 
             PrivateKey privKey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(key));
             
@@ -218,16 +206,15 @@ public class Server {
             e.printStackTrace();
             System.out.println(("Error in encryption"));
         }
-        
         return signature;
     }
 
-    private String[] createResponse(String nonce, long timestamp) {
+    private String[] createResponse(long nonce, long timestamp) {
         long newTimestamp = System.currentTimeMillis() / 1000;
-        String m = true + nonce + timestamp + newTimestamp;
+        String m = true + String.valueOf(nonce + 1) + timestamp + newTimestamp;
         byte[] signServer = encrypt(m);
 
-        return new String[]{"true", nonce, String.valueOf(timestamp),
+        return new String[]{"true", String.valueOf(nonce + 1), String.valueOf(timestamp),
                 String.valueOf(newTimestamp), new String(signServer, StandardCharsets.UTF_8)};
     }
 }

@@ -17,7 +17,7 @@ public class NonceManager {
     // we'll default to a 10-minute validity window, otherwise the amount of memory used on nonces can get quite large.
     private long validityWindowSeconds = 60 * 10;
 
-    public void validateNonce(String nonce, long timestamp) throws TimestampExpiredException, NonceAlreadyUsedException {
+    public void validateNonce(long nonce, long timestamp) throws TimestampExpiredException, NonceAlreadyUsedException {
         if (System.currentTimeMillis() / 1000 - timestamp > getValidityWindowSeconds())
             throw new TimestampExpiredException();
 
@@ -71,9 +71,9 @@ public class NonceManager {
     static class NonceEntry {
 
         private final long timestamp;
-        private final String nonce;
+        private final long nonce;
 
-        public NonceEntry(long timestamp, String nonce) {
+        public NonceEntry(long timestamp, long nonce) {
             this.timestamp = timestamp;
             this.nonce = nonce;
         }
@@ -82,7 +82,7 @@ public class NonceManager {
             return timestamp;
         }
 
-        public String getNonce() {
+        public long getNonce() {
             return nonce;
         }
 

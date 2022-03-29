@@ -6,7 +6,6 @@ import pt.tecnico.bank.server.grpc.Server.*;
 import pt.tecnico.bank.server.grpc.ServerServiceGrpc;
 
 import java.io.Closeable;
-import java.util.concurrent.TimeUnit;
 
 
 public class ServerFrontend implements Closeable {
@@ -24,18 +23,19 @@ public class ServerFrontend implements Closeable {
 
     /* ---------- Services ---------- */
 
+
     public PingResponse ping(PingRequest request) {
         return stub.ping(PingRequest.newBuilder().setInput(request.getInput()).build());
     }
 
     public OpenAccountResponse openAccount(OpenAccountRequest request) {
-        return stub.withDeadlineAfter(2, TimeUnit.SECONDS).openAccount(OpenAccountRequest.newBuilder()
+        return stub.openAccount(OpenAccountRequest.newBuilder()
                 .setPublicKey(request.getPublicKey())
                 .setBalance(request.getBalance()).build());
     }
 
     public SendAmountResponse sendAmount(SendAmountRequest request) {
-        return stub.withDeadlineAfter(2, TimeUnit.SECONDS).sendAmount(SendAmountRequest.newBuilder()
+        return stub.sendAmount(SendAmountRequest.newBuilder()
                 .setAmount(request.getAmount())
                 .setSourceKey(request.getSourceKey())
                 .setDestinationKey(request.getDestinationKey())
@@ -66,4 +66,5 @@ public class ServerFrontend implements Closeable {
     public final void close() {
         channel.shutdown();
     }
+
 }

@@ -26,13 +26,13 @@ message SendAmountRequest {
   bytes destination_key = 2;
   int32 amount = 3;
   bytes signature = 4;
-  string nonce = 5;
+  int64 nonce = 5;
   int64 timestamp = 6;
 }
 
 message SendAmountResponse {
   bool ack = 1;
-  string nonce = 2;
+  int64 nonce = 2;
   int64 recv_timestamp = 3;
   int64 new_timestamp = 4;
   bytes signature = 5;
@@ -50,13 +50,13 @@ message CheckAccountResponse {
 message ReceiveAmountRequest {
   bytes public_key = 1;
   bytes signature = 2;
-  string nonce = 3;
+  int64 nonce = 3;
   int64 timestamp = 4;
 }
 
 message ReceiveAmountResponse {
   bool ack = 1;
-  string nonce = 2;
+  int64 nonce = 2;
   int64 recv_timestamp = 3;
   int64 new_timestamp = 4;
   bytes signature = 5;

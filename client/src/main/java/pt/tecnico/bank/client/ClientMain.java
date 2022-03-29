@@ -9,11 +9,11 @@ import java.io.FileReader;
 import java.util.Scanner;
 
 public class ClientMain {
-    
+
     private final static String USER_PATH = System.getProperty("user.dir") + "\\CLIENTS\\users.txt";
     private static String username = "";
     public static void main(String[] args) {
-        
+
         System.out.println(ClientMain.class.getSimpleName());
 
         ServerFrontend frontend;
@@ -21,7 +21,7 @@ public class ClientMain {
 
         try {
             frontend = new ServerFrontend();
-           // client = new Client(frontend);
+            // client = new Client(frontend);
         } catch (Exception e) {
             System.out.println("Caught exception with description: " + e.getMessage());
             return;
@@ -31,7 +31,7 @@ public class ClientMain {
         String input;
         String[] tokens;
         boolean loggedIn = false;
-        
+
         try {
             while(!loggedIn){
                 System.out.println("Login to use bank application");
@@ -65,7 +65,7 @@ public class ClientMain {
 
                 if(password.equals(input) && !input.equals(""))
                     loggedIn = true;
-            
+
                 while(loggedIn){
                     client = new Client(frontend, username);
 
@@ -99,8 +99,8 @@ public class ClientMain {
                                 }*/
 
                                 client.send_amount(tokens[1], tokens[2],
-                                                    Integer.parseInt(tokens[3]),
-                                                    tokens[4]);
+                                        Integer.parseInt(tokens[3]),
+                                        tokens[4]);
                             } else {
                                 System.err.println("ERROR: Usage: send %sender_account% %receiver_account% %amount% %password%");
                             }
@@ -156,23 +156,23 @@ public class ClientMain {
     }
 
     public static void sendAmount(){
-        
+
     }
 
     public static void checkAccount(){
-        
+
     }
 
     public static void receiveTransfers(){
-        
+
     }
 
     public static void audit(){
-        
+
     }
 
     public void logout(){
-        
+
     }
 
     public static String getUsername(){
