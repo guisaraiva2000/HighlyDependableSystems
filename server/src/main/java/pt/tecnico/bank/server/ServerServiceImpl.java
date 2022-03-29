@@ -10,6 +10,9 @@ import pt.tecnico.bank.server.grpc.ServerServiceGrpc;
 
 import static io.grpc.Status.*;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
@@ -65,6 +68,12 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             long newTimestamp = Long.parseLong(r[3]);
             byte[] signature = r[4].getBytes(StandardCharsets.UTF_8);
 
+            try(FileOutputStream fos = new FileOutputStream(System.getProperty("user.dir") + "\\m.txt")){
+                fos.write(signature);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
             SendAmountResponse response = SendAmountResponse.newBuilder()
                                                             .setAck(ack)
                                                             .setNonce(nonce)
@@ -92,10 +101,14 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     @Override
     public void checkAccount(CheckAccountRequest request, StreamObserver<CheckAccountResponse> responseObserver) {
         try {
-            String[] res = server.checkAccount(request.getPublicKey());
+            String[] r = server.checkAccount(request.getPublicKey());
+            byte[] signature = r[2].getBytes(StandardCharsets.UTF_8);
+
             CheckAccountResponse response = CheckAccountResponse.newBuilder()
-                    .setBalance(Integer.parseInt(res[0]))
-                    .setPendentTransfers(res[1]).build();
+                                                                .setBalance(Integer.parseInt(r[0]))
+                                                                .setPendentTransfers(r[1])
+                                                                .setSignature(ByteString.copyFrom(signature))
+                                                                .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (AccountDoesNotExistsException e) {
@@ -138,8 +151,12 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     @Override
     public void audit(AuditRequest request, StreamObserver<AuditResponse> responseObserver) {
         try {
-            String res = server.audit(request.getPublicKey());
-            AuditResponse response = AuditResponse.newBuilder().setTransferHistory(res).build();
+            String[] r = server.audit(request.getPublicKey());
+            byte[] signature = r[1].getBytes(StandardCharsets.UTF_8);
+
+            AuditResponse response = AuditResponse.newBuilder().setTransferHistory(r[0])
+                                                                .setSignature(ByteString.copyFrom(signature))
+                                                                .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (AccountDoesNotExistsException e) {
