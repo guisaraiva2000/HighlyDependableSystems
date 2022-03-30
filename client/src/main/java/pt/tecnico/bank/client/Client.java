@@ -2,19 +2,6 @@ package pt.tecnico.bank.client;
 
 import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
-import org.apache.commons.lang3.RandomStringUtils;
-import pt.tecnico.bank.server.ServerFrontend;
-
-import java.security.*;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Calendar;
-import java.util.Date;
-import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
-
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.BasicConstraints;
@@ -23,16 +10,20 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import pt.tecnico.bank.server.ServerFrontend;
 import pt.tecnico.bank.server.grpc.Server.*;
 
-import javax.crypto.Cipher;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.security.spec.EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.util.Calendar;
+import java.util.Date;
 
 public class Client {
 

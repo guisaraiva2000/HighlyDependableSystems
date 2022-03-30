@@ -1,7 +1,5 @@
 package pt.tecnico.bank.server;
 
-import io.grpc.Context;
-import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import pt.tecnico.bank.server.domain.Server;
 import pt.tecnico.bank.server.domain.exception.*;
@@ -25,6 +23,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
 
     public ServerServiceImpl() {
         this.server = new Server();
+        this.server.loadState();
     }
 
     @Override

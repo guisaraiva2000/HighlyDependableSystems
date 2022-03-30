@@ -1,8 +1,9 @@
 package pt.tecnico.bank.server.domain;
 
+import java.io.Serializable;
 import java.security.PublicKey;
 
-public  class Transfer {
+public  class Transfer implements Serializable {
 
     private PublicKey destination;
     private int amount;

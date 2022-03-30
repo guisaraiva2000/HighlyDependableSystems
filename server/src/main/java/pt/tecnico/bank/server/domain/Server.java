@@ -1,64 +1,37 @@
 package pt.tecnico.bank.server.domain;
 
 import com.google.protobuf.ByteString;
-import java.lang.reflect.Type;
-import com.google.gson.reflect.TypeToken;
 
 import pt.tecnico.bank.server.domain.exception.*;
 
+import java.io.*;
+import java.math.BigInteger;
+import java.nio.file.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.stream.Collectors;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
-import com.google.gson.*;
 
 /**
  * Facade class.
  * Contains the service operations.
  */
-public class Server {
+public class Server implements Serializable {
 
     private final String SERVER_PATH = System.getProperty("user.dir") + "\\KEYS\\";
-    private final String DATA_PATH = System.getProperty("user.dir") + "\\data.txt";
+    //private final String DATA_PATH = System.getProperty("user.dir") + "\\storage" + "\\data.txt";
+    private final Path DATA_PATH = Paths.get(System.getProperty("user.dir"), "storage", "data.txt");
     private final String SERVER_PASS = "server";
-    private Gson gson = new Gson();
 
     private LinkedHashMap<PublicKey, User> users = new LinkedHashMap<>();
 
     public Server() {
-
-       /* ObjectInputStream ois;
-        try {
-            FileInputStream fis = new FileInputStream(DATA_PATH);
-            ois = new ObjectInputStream(fis);
-            users = (LinkedHashMap<PublicKey, User>) ois.readObject();
-            fis.close();
-            ois.close();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-
-
-
-            System.out.println(users);*/
     }
 
-    public synchronized String[] openAccount(ByteString pubKey, int balance) throws AccountAlreadyExistsException, FileNotFoundException, IOException {
+    public synchronized String[] openAccount(ByteString pubKey, int balance) throws AccountAlreadyExistsException, IOException {
         PublicKey pubKeyBytes = keyToBytes(pubKey);
 
         if (users.containsKey(pubKeyBytes))
@@ -67,9 +40,7 @@ public class Server {
         User newUser = new User(pubKeyBytes, balance);
         users.put(pubKeyBytes, newUser);
 
-        /*ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(DATA_PATH));
-        oos.writeObject(users);
-        oos.close();*/
+        saveState();
 
         String message = "true" + pubKeyBytes.toString();
 
@@ -108,12 +79,6 @@ public class Server {
         addPendingTransfer(amount, sourceKey, destinationKey);  // add to dest pending list
 
         return createResponse("true", nonce, timestamp);
-    }
-
-    private void addPendingAmount(int amount, PublicKey key) {
-        User user = users.get(key);
-        user.setPendentAmount(user.getPendentAmount() + amount);
-        users.put(key, user);
     }
 
     public synchronized String[] checkAccount(ByteString pubKey) throws AccountDoesNotExistsException {
@@ -209,6 +174,12 @@ public class Server {
         users.put(destinationKey, user);
     }
 
+    private void addPendingAmount(int amount, PublicKey key) {
+        User user = users.get(key);
+        user.setPendentAmount(user.getPendentAmount() + amount);
+        users.put(key, user);
+    }
+
     private String getTransfersAsString(LinkedList<Transfer> pendingTransfers) {
         return pendingTransfers.stream().map(Transfer::toString).collect(Collectors.joining());
     }
@@ -277,4 +248,56 @@ public class Server {
         return new String[]{message, String.valueOf(nonce + 1), String.valueOf(timestamp),
             String.valueOf(newTimestamp), new String(signServer, StandardCharsets.ISO_8859_1)};
     }
+
+    public void loadState() {
+        if (!DATA_PATH.toFile().exists()) {
+            try {
+                Files.createFile(DATA_PATH);
+                saveState();
+                return;
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        try (FileInputStream fis = new FileInputStream(DATA_PATH.toString()); ObjectInputStream ois = new ObjectInputStream(fis)) {
+            users = (LinkedHashMap<PublicKey, User>) ois.readObject();
+        } catch (FileNotFoundException fnfe) {
+            try {
+                Files.createDirectories(DATA_PATH.getParent());
+                Files.createFile(DATA_PATH);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void saveState() {
+        try {
+            byte[] userBytes = mapToBytes();
+
+            Path tmp_path = Paths.get(System.getProperty("user.dir"), "storage");
+            Path tmpPathFile = File.createTempFile("atomic", "tmp", new File(tmp_path.toString())).toPath();
+            Files.write(tmpPathFile, userBytes, StandardOpenOption.APPEND);
+
+
+            Files.move(tmp_path, DATA_PATH, StandardCopyOption.ATOMIC_MOVE);
+            System.out.println("cona");
+        } catch (IOException io) {
+            io.printStackTrace();
+        }
+    }
+
+    private byte[] mapToBytes() throws IOException {
+        ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+        ObjectOutputStream out = new ObjectOutputStream(byteOut);
+        out.writeObject(users);
+        byte[] userBytes = byteOut.toByteArray();
+        out.flush();
+        byteOut.close();
+        return userBytes;
+    }
+
 }

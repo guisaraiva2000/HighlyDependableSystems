@@ -3,9 +3,10 @@ package pt.tecnico.bank.server.domain;
 import pt.tecnico.bank.server.domain.exception.NonceAlreadyUsedException;
 import pt.tecnico.bank.server.domain.exception.TimestampExpiredException;
 
+import java.io.Serializable;
 import java.util.*;
 
-public class NonceManager {
+public class NonceManager implements Serializable {
 
     /**
      * Contains all the nonces that were used inside the validity window sorted by timestamp.
@@ -68,7 +69,7 @@ public class NonceManager {
     /**
      * Representation of a nonce -> (rand, timestamp)
      */
-    static class NonceEntry {
+    static class NonceEntry implements Serializable{
 
         private final long timestamp;
         private final long nonce;
