@@ -1,14 +1,12 @@
 package pt.tecnico.bank.server.domain;
 
-import java.io.Serializable;
 import java.security.PublicKey;
 import java.util.LinkedList;
 
-public class User implements Serializable {
+public class User {
 
     private final PublicKey pubKey;
     private int balance;
-    private int pendentAmount = 0; // stores the non-received money
     private LinkedList<Transfer> totalTransfers = new LinkedList<>(); // transfer = (key, amount)
     private LinkedList<Transfer> pendingTransfers = new LinkedList<>();
     private NonceManager nonceManager = new NonceManager();
@@ -29,14 +27,6 @@ public class User implements Serializable {
 
     public void setBalance(int balance) {
         this.balance = balance;
-    }
-
-    public int getPendentAmount() {
-        return pendentAmount;
-    }
-
-    public void setPendingAmount(int pendingAmount) {
-        this.pendentAmount = pendingAmount;
     }
 
     public LinkedList<Transfer> getTotalTransfers() {
@@ -68,7 +58,6 @@ public class User implements Serializable {
         return "User{" +
                 "pubKey=" + pubKey +
                 ", balance=" + balance +
-                ", pendingAmount=" + pendentAmount +
                 ", totalTransfers=" + totalTransfers +
                 ", pendingTransfers=" + pendingTransfers +
                 '}';

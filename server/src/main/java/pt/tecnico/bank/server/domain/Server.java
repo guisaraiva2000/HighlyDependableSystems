@@ -1,6 +1,9 @@
 package pt.tecnico.bank.server.domain;
 
 import com.google.protobuf.ByteString;
+import java.lang.reflect.Type;
+import com.google.gson.reflect.TypeToken;
+
 import pt.tecnico.bank.server.domain.exception.*;
 
 import java.security.spec.InvalidKeySpecException;
@@ -8,9 +11,17 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.stream.Collectors;
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
+import com.google.gson.*;
 
 /**
  * Facade class.
@@ -19,13 +30,35 @@ import java.security.*;
 public class Server {
 
     private final String SERVER_PATH = System.getProperty("user.dir") + "\\KEYS\\";
+    private final String DATA_PATH = System.getProperty("user.dir") + "\\data.txt";
     private final String SERVER_PASS = "server";
+    private Gson gson = new Gson();
 
-    private final LinkedHashMap<PublicKey, User> users = new LinkedHashMap<>();
+    private LinkedHashMap<PublicKey, User> users = new LinkedHashMap<>();
 
-    public Server() {}
+    public Server() {
 
-    public synchronized String[] openAccount(ByteString pubKey, int balance) throws AccountAlreadyExistsException {
+       /* ObjectInputStream ois;
+        try {
+            FileInputStream fis = new FileInputStream(DATA_PATH);
+            ois = new ObjectInputStream(fis);
+            users = (LinkedHashMap<PublicKey, User>) ois.readObject();
+            fis.close();
+            ois.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+
+
+
+            System.out.println(users);*/
+    }
+
+    public synchronized String[] openAccount(ByteString pubKey, int balance) throws AccountAlreadyExistsException, FileNotFoundException, IOException {
         PublicKey pubKeyBytes = keyToBytes(pubKey);
 
         if (users.containsKey(pubKeyBytes))
@@ -33,6 +66,10 @@ public class Server {
 
         User newUser = new User(pubKeyBytes, balance);
         users.put(pubKeyBytes, newUser);
+
+        /*ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(DATA_PATH));
+        oos.writeObject(users);
+        oos.close();*/
 
         String message = "true" + pubKeyBytes.toString();
 
