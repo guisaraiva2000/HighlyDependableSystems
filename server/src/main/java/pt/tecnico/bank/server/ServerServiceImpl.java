@@ -58,8 +58,14 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
                                                                             .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
+
+            //TODO catches
         } catch (AccountAlreadyExistsException e) {
             responseObserver.onError(ALREADY_EXISTS.withDescription(e.getMessage()).asRuntimeException());
+        } catch (FileNotFoundException e) {
+            responseObserver.onError(ALREADY_EXISTS.withDescription("DATA FILE NOT FOUND").asRuntimeException());
+        } catch (IOException e) {
+            responseObserver.onError(ALREADY_EXISTS.withDescription("SOMETHING WENT WRONG").asRuntimeException());
         }
     }
 

@@ -1,9 +1,12 @@
 package pt.tecnico.bank.server.domain;
 
+import java.io.Serializable;
 import java.security.PublicKey;
 import java.util.LinkedList;
 
-public class User {
+public class User implements Serializable {
+
+    private static final long serialVersionUID = 202104021434L;
 
     private final PublicKey pubKey;
     private int balance;
