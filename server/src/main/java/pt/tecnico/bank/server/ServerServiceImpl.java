@@ -109,11 +109,12 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void checkAccount(CheckAccountRequest request, StreamObserver<CheckAccountResponse> responseObserver) {
         try {
             String[] r = server.checkAccount(request.getPublicKey());
-            byte[] signature = r[2].getBytes(StandardCharsets.ISO_8859_1);
+            byte[] signature = r[3].getBytes(StandardCharsets.ISO_8859_1);
 
             CheckAccountResponse response = CheckAccountResponse.newBuilder()
                                                                 .setBalance(Integer.parseInt(r[0]))
-                                                                .setPendentTransfers(r[1])
+                                                                .setPendentAmount(Integer.parseInt(r[1]))
+                                                                .setPendentTransfers(r[2])
                                                                 .setSignature(ByteString.copyFrom(signature))
                                                                 .build();
             responseObserver.onNext(response);
@@ -129,14 +130,14 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
 
             String[] r = server.receiveAmount(request.getPublicKey(), request.getSignature(), request.getNonce(), request.getTimestamp());
 
-            boolean ack = Objects.equals(r[0], "true");
+            int recvAmount = Integer.parseInt(r[0]);
             long nonce = Long.parseLong(r[1]);
             long recvTimestamp = Long.parseLong(r[2]);
             long newTimestamp = Long.parseLong(r[3]);
             byte[] signature = r[4].getBytes(StandardCharsets.ISO_8859_1);
 
             ReceiveAmountResponse response = ReceiveAmountResponse.newBuilder()
-                                                                    .setAck(ack)
+                                                                    .setRecvAmount(recvAmount)
                                                                     .setNonce(nonce)
                                                                     .setRecvTimestamp(recvTimestamp)
                                                                     .setNewTimestamp(newTimestamp)

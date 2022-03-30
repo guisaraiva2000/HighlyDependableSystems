@@ -4,15 +4,12 @@ import com.google.protobuf.ByteString;
 import pt.tecnico.bank.server.domain.exception.*;
 
 import java.security.spec.InvalidKeySpecException;
-import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.stream.Collectors;
 import java.io.FileInputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.*;
 
 /**
@@ -67,18 +64,19 @@ public class Server {
 
         User sourceUser = users.get(sourceKey);
 
-        if (sourceUser.getBalance() < amount)
+        if (sourceUser.getBalance() + sourceUser.getPendentAmount() < amount)
             throw new NotEnoughBalanceException();
 
-        // TODO check if it was the source user that made the transfer ?????
-
-        User destUser = users.get(destinationKey);
-        LinkedList<Transfer> destPendingTransfers = destUser.getPendingTransfers();
-        destPendingTransfers.add(new Transfer(sourceKey, amount)); // added to the dest pending transfers list
-        destUser.setPendingTransfers(destPendingTransfers);
-        users.put(destinationKey, destUser);
+        addPendingAmount(-amount, sourceKey);
+        addPendingTransfer(amount, sourceKey, destinationKey);  // add to dest pending list
 
         return createResponse("true", nonce, timestamp);
+    }
+
+    private void addPendingAmount(int amount, PublicKey key) {
+        User user = users.get(key);
+        user.setPendingAmount(user.getPendentAmount() + amount);
+        users.put(key, user);
     }
 
     public synchronized String[] checkAccount(ByteString pubKey) throws AccountDoesNotExistsException {
@@ -94,8 +92,15 @@ public class Server {
             pendingTransfersAsString = getTransfersAsString(pendingTransfers);
         }
 
-        String message = String.valueOf(users.get(pubKeyBytes).getBalance()) + pendingTransfersAsString ;
-        return new String[]{ String.valueOf(users.get(pubKeyBytes).getBalance()), pendingTransfersAsString , new String(encrypt(message), StandardCharsets.ISO_8859_1)};
+        String message = String.valueOf(users.get(pubKeyBytes).getBalance()) +
+                        (-users.get(pubKeyBytes).getPendentAmount()) +
+                        pendingTransfersAsString;
+
+        return new String[]{ String.valueOf(users.get(pubKeyBytes).getBalance()),
+                String.valueOf(-users.get(pubKeyBytes).getPendentAmount()),
+                pendingTransfersAsString ,
+                new String(encrypt(message), StandardCharsets.ISO_8859_1)
+        };
     }
 
     public synchronized String[] receiveAmount(ByteString pubKeyString, ByteString signature, long nonce, long timestamp) throws AccountDoesNotExistsException, NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException {
@@ -108,15 +113,16 @@ public class Server {
 
         byte[] signatureBytes = new byte[256];
         signature.copyTo(signatureBytes, 0);
-    
+
         // validate nonce too
         if (!validateMessage(pubKey, message, signatureBytes))
             throw new SignatureNotValidException();
-    
+
         validateNonce(pubKey, nonce, timestamp);
 
         User user = users.get(pubKey);
         LinkedList<Transfer> pendingTransfers = user.getPendingTransfers();
+        int oldBalance = user.getBalance();
 
         pendingTransfers.forEach(transfer -> {
             transferAmount(transfer.getDestination(), pubKey, -transfer.getAmount()); // take from senders
@@ -127,7 +133,8 @@ public class Server {
         user.setPendingTransfers(pendingTransfers); // clear the list
         users.put(pubKey, user); // update user
 
-        return createResponse("true", nonce, timestamp);
+        String transferredAmount = String.valueOf(user.getBalance() - oldBalance);
+        return createResponse(transferredAmount, nonce, timestamp);
     }
 
     public synchronized String[] audit(ByteString pubKeyString) throws AccountDoesNotExistsException {
@@ -139,8 +146,8 @@ public class Server {
         LinkedList<Transfer> totalTransfers = users.get(pubKey).getTotalTransfers();
 
         if (totalTransfers == null)
-            return new String[]{"No transfers waiting to be acepted", new String(encrypt("No transfers waiting to be acepted"), StandardCharsets.ISO_8859_1)};
-        
+            return new String[]{"No transfers waiting to be accepted",
+                        new String(encrypt("No transfers waiting to be accepted"), StandardCharsets.ISO_8859_1)};
 
         return new String[]{getTransfersAsString(totalTransfers), new String(encrypt(getTransfersAsString(totalTransfers)), StandardCharsets.ISO_8859_1)};
     }
@@ -150,10 +157,19 @@ public class Server {
     private void transferAmount(PublicKey senderKey, PublicKey receiverKey, int amount) {
         User user = users.get(senderKey);
         LinkedList<Transfer> totalTransfers = user.getTotalTransfers();
-        totalTransfers.add(new Transfer(receiverKey, amount));
+        totalTransfers.add(new Transfer(receiverKey, amount, false));
         user.setTotalTransfers(totalTransfers);
         user.setBalance(user.getBalance() + amount);
+        if (amount < 0)  user.setPendingAmount(user.getPendentAmount() - amount);
         users.put(senderKey, user);
+    }
+
+    private void addPendingTransfer(int amount, PublicKey sourceKey, PublicKey destinationKey) {
+        User user = users.get(destinationKey);
+        LinkedList<Transfer> destPendingTransfers = user.getPendingTransfers();
+        destPendingTransfers.add(new Transfer(sourceKey, amount, true)); // added to the dest pending transfers list
+        user.setPendingTransfers(destPendingTransfers);
+        users.put(destinationKey, user);
     }
 
     private String getTransfersAsString(LinkedList<Transfer> pendingTransfers) {
@@ -177,12 +193,11 @@ public class Server {
     private void validateNonce(PublicKey publicKey, long nonce, long timestamp)
             throws NonceAlreadyUsedException, TimestampExpiredException {
         users.get(publicKey).getNonceManager().validateNonce(nonce, timestamp);
-        System.out.println(users.get(publicKey).getNonceManager().getNonces());
     }
 
     private boolean validateMessage(PublicKey pubKey, String message, byte[] signature)
     {
-        boolean verified = true;
+        boolean verified = false;
         try{
             Signature sign = Signature.getInstance("SHA256withRSA");
             sign.initVerify(pubKey);

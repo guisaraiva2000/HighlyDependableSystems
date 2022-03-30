@@ -6,10 +6,12 @@ public  class Transfer {
 
     private PublicKey destination;
     private int amount;
+    private final boolean isPending;
 
-    public Transfer(PublicKey destination, int amount) {
+    public Transfer(PublicKey destination, int amount, boolean isPending) {
         this.destination = destination;
         this.amount = amount;
+        this.isPending = isPending;
     }
 
     public PublicKey getDestination() {
@@ -30,6 +32,9 @@ public  class Transfer {
 
     @Override
     public String toString() {
+        if (isPending)
+            return amount < 0 ? "- To send: " + (-amount) : "- To receive: " + amount;
+
         return amount < 0 ? "- Sent: " + (-amount) : "- Received: " + amount;
     }
 }

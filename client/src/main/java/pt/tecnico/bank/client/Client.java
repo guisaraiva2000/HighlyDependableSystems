@@ -97,7 +97,7 @@ public class Client {
 
             boolean ack = res.getAck();
             ByteString keyString = res.getPublicKey();
-            byte key[] = new byte[698];
+            byte[] key = new byte[698];
             keyString.copyTo(key,0);
             byte[] signature = new byte[256];
             res.getSignature().copyTo(signature,0);
@@ -153,9 +153,9 @@ public class Client {
 
             if (validateResponse(getPublicKey("server"), newMessage, newSignature) && ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce)
                 System.out.println("Sent " + amount + " from " + senderAccount + " to " + receiverAccount);
-            else 
+            else
                 System.out.println("WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
-            
+
 
         } catch (StatusRuntimeException e) {
             printError(e);
@@ -172,16 +172,18 @@ public class Client {
             CheckAccountResponse res = frontend.checkAccount(req);
 
             int balance = res.getBalance();
+            int pendentAmount = res.getPendentAmount();
             String transfers = res.getPendentTransfers();
             ByteString sig = res.getSignature();
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature,0);
 
-            String newMessage = String.valueOf(balance) + transfers;
+            String newMessage = String.valueOf(balance) + pendentAmount + transfers;
 
             if(validateResponse(getPublicKey("server"), newMessage, newSignature))
                 System.out.println("Account Status:\n\t" +
                                         "- Balance: " + balance +
+                                        "\n\t- On hold amount to send: " + pendentAmount +
                                         "\n\t- Pending transfers:" + transfers.replaceAll("-", "\n\t\t-"));
             else
                 System.out.println("WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
@@ -210,7 +212,7 @@ public class Client {
                     .build();
             ReceiveAmountResponse response = frontend.receiveAmount(req);
 
-            boolean ack = response.getAck();
+            int recvAmount = response.getRecvAmount();
             long recvTimestamp = response.getRecvTimestamp();
             long newTimestamp = response.getNewTimestamp();
             long newNonce = response.getNonce();
@@ -218,13 +220,14 @@ public class Client {
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature, 0);
 
-            String newMessage = String.valueOf(ack) + String.valueOf(newNonce) + timestamp + newTimestamp;
+            String newMessage = String.valueOf(recvAmount) + String.valueOf(newNonce) + timestamp + newTimestamp;
 
-            if (validateResponse(getPublicKey("server"), newMessage, newSignature) && ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce)
-                System.out.println("Amount deposited to your account");
-            else 
+            if (validateResponse(getPublicKey("server"), newMessage, newSignature) &&
+                    recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce)
+                System.out.println("Amount deposited to your account: " + recvAmount);
+            else
                 System.out.println("WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
-            
+
         } catch (StatusRuntimeException e) {
             printError(e);
         }
@@ -241,9 +244,7 @@ public class Client {
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature,0);
 
-            String newMessage = transfers;
-
-            if(validateResponse(getPublicKey("server"), newMessage, newSignature))
+            if(validateResponse(getPublicKey("server"), transfers, newSignature))
                 System.out.println("Total transfers:" + transfers.replaceAll("-", "\n\t-"));
             else
                 System.out.println("WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");

@@ -46,8 +46,9 @@ message CheckAccountRequest {
 
 message CheckAccountResponse {
   int32 balance = 1;
-  string pendent_transfers = 2;
-  bytes signature = 3;
+  int32 pendent_amount = 2;
+  string pendent_transfers = 3;
+  bytes signature = 4;
 }
 
 message ReceiveAmountRequest {
@@ -58,7 +59,7 @@ message ReceiveAmountRequest {
 }
 
 message ReceiveAmountResponse {
-  bool ack = 1;
+  int32 recv_amount = 1;
   int64 nonce = 2;
   int64 recv_timestamp = 3;
   int64 new_timestamp = 4;
