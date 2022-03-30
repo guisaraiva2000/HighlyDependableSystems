@@ -112,7 +112,7 @@ public class Server {
 
     private void addPendingAmount(int amount, PublicKey key) {
         User user = users.get(key);
-        user.setPendingAmount(user.getPendentAmount() + amount);
+        user.setPendentAmount(user.getPendentAmount() + amount);
         users.put(key, user);
     }
 
@@ -197,7 +197,7 @@ public class Server {
         totalTransfers.add(new Transfer(receiverKey, amount, false));
         user.setTotalTransfers(totalTransfers);
         user.setBalance(user.getBalance() + amount);
-        if (amount < 0)  user.setPendingAmount(user.getPendentAmount() - amount);
+        if (amount < 0)  user.setPendentAmount(user.getPendentAmount() - amount);
         users.put(senderKey, user);
     }
 

@@ -43,7 +43,7 @@ public class ReceiveAmountIT {
         ReceiveAmountRequest req = ReceiveAmountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("987654321")).build();
         ReceiveAmountResponse res = frontend.receiveAmount(req);
 
-        assertTrue(res.getAck());
+        assertEquals(20, res.getRecvAmount());
 
         CheckAccountRequest careq = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("987654321")).build();
         CheckAccountResponse cares = frontend.checkAccount(careq);
