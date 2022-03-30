@@ -93,8 +93,22 @@ public class Client {
                     .setBalance(amount)
                     .build();
 
-            frontend.openAccount(req);
-            System.out.println("Account with name " + accountName + " created");
+            OpenAccountResponse res = frontend.openAccount(req);
+
+            boolean ack = res.getAck();
+            ByteString keyString = res.getPublicKey();
+            byte key[] = new byte[698];
+            keyString.copyTo(key,0);
+            byte[] signature = new byte[256];
+            res.getSignature().copyTo(signature,0);
+
+            String message = ack + pubKey.toString();
+
+            if(validateResponse(getPublicKey("server"), message, signature))
+                System.out.println("Account with name " + accountName + " created");
+            else
+                System.out.println("WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
+
         } catch (StatusRuntimeException e) {
             printError(e);
         } catch (Exception e){
@@ -131,26 +145,17 @@ public class Client {
             long newTimestamp = response.getNewTimestamp();
             long newNonce = response.getNonce();
             ByteString sig = response.getSignature();
-            /*byte[] newSignature = new byte[256];
-            sig.copyTo(newSignature,0);*/
-
-            try(FileOutputStream fos = new FileOutputStream(System.getProperty("user.dir") + "\\m.txt")){
-                fos.write(sig.toByteArray());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            byte[] newSignature = new byte[256];
+            sig.copyTo(newSignature,0);
 
             //System.out.println("Ack: " + ack + "recv " + recvTimestamp + "new " + newTimestamp + "newNonce " + newNonce);
             String newMessage = String.valueOf(ack) + String.valueOf(newNonce) + timestamp + newTimestamp;
 
-            //if (validateResponse(getPublicKey("server"), newMessage, newSignature, ack, recvTimestamp, newTimestamp, timestamp, nonce, newNonce)) {
-            if(ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce){
+            if (validateResponse(getPublicKey("server"), newMessage, newSignature) && ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce)
                 System.out.println("Sent " + amount + " from " + senderAccount + " to " + receiverAccount);
-            } else {
-                System.out.println("Invalid message from server.");
-            }
-
-            // TODO verify newSignature
+            else 
+                System.out.println("WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
+            
 
         } catch (StatusRuntimeException e) {
             printError(e);
@@ -166,9 +171,21 @@ public class Client {
             CheckAccountRequest req = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded())).build();
             CheckAccountResponse res = frontend.checkAccount(req);
 
-            System.out.println("Account Status:\n\t" +
-                                    "- Balance: " + res.getBalance() +
-                                    "\n\t- Pending transfers:" + res.getPendentTransfers().replaceAll("-", "\n\t\t-"));
+            int balance = res.getBalance();
+            String transfers = res.getPendentTransfers();
+            ByteString sig = res.getSignature();
+            byte[] newSignature = new byte[256];
+            sig.copyTo(newSignature,0);
+
+            String newMessage = String.valueOf(balance) + transfers;
+
+            if(validateResponse(getPublicKey("server"), newMessage, newSignature))
+                System.out.println("Account Status:\n\t" +
+                                        "- Balance: " + balance +
+                                        "\n\t- Pending transfers:" + transfers.replaceAll("-", "\n\t\t-"));
+            else
+                System.out.println("WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
+
         } catch (StatusRuntimeException e) {
             printError(e);
         }
@@ -197,16 +214,17 @@ public class Client {
             long recvTimestamp = response.getRecvTimestamp();
             long newTimestamp = response.getNewTimestamp();
             long newNonce = response.getNonce();
-            ByteString newSignature = response.getSignature();
+            ByteString sig = response.getSignature();
+            byte[] newSignature = new byte[256];
+            sig.copyTo(newSignature, 0);
 
-            if (ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce) {
+            String newMessage = String.valueOf(ack) + String.valueOf(newNonce) + timestamp + newTimestamp;
+
+            if (validateResponse(getPublicKey("server"), newMessage, newSignature) && ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce)
                 System.out.println("Amount deposited to your account");
-            } else {
-                System.out.println("Invalid message from server.");
-            }
-
-            // TODO verify newSignature
-
+            else 
+                System.out.println("WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
+            
         } catch (StatusRuntimeException e) {
             printError(e);
         }
@@ -217,7 +235,19 @@ public class Client {
             PublicKey key = getPublicKey(accountName);
             AuditRequest req = AuditRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded())).build();
             AuditResponse res = frontend.auditResponse(req);
-            System.out.println("Total transfers:" + res.getTransferHistory().replaceAll("-", "\n\t-"));
+
+            String transfers = res.getTransferHistory();
+            ByteString sig = res.getSignature();
+            byte[] newSignature = new byte[256];
+            sig.copyTo(newSignature,0);
+
+            String newMessage = transfers;
+
+            if(validateResponse(getPublicKey("server"), newMessage, newSignature))
+                System.out.println("Total transfers:" + transfers.replaceAll("-", "\n\t-"));
+            else
+                System.out.println("WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
+
         } catch (StatusRuntimeException e) {
             printError(e);
         }
@@ -254,30 +284,6 @@ public class Client {
         }
 
         return signature;
-    }
-
-    private String decrypt(byte[] message) {
-        String decryptedMessage = "";
-
-        try {
-            File publicKeyFile = new File(client_path+ "public.txt");
-            byte[] publicKeyBytes = Files.readAllBytes(publicKeyFile.toPath());
-
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKeyBytes);
-            Key pubKey = keyFactory.generatePrivate(publicKeySpec);
-
-            Cipher decryptCipher = Cipher.getInstance("RSA");
-            decryptCipher.init(Cipher.DECRYPT_MODE, pubKey);
-
-            byte[] decryptedMessageBytes = decryptCipher.doFinal(message);
-            decryptedMessage = new String(decryptedMessageBytes, StandardCharsets.UTF_8);
-
-        } catch(Exception e){
-            System.out.println(("Error in encryption"));
-        }
-
-        return decryptedMessage;
     }
 
     private X509Certificate selfSign(KeyPair keyPair, String subjectDN)
@@ -336,36 +342,7 @@ public class Client {
 
     }
 
-    private String messageToString(byte[] orig_bytes, byte[] dest_bytes, int amount, String nonce)
-    {
-        return orig_bytes.toString() + dest_bytes.toString() + String.valueOf(amount) + nonce;
-        /*SendMoney message = new SendMoney(
-            orig_bytes,
-            dest_bytes,
-            amount,
-            nonce
-        );*/
-    }
-
-    private PublicKey keyToBytes(ByteString pubKey) {
-        byte[] pubKeyBytes = new byte[294];
-        pubKey.copyTo(pubKeyBytes, 0);
-
-        PublicKey publicKey = null;
-
-        try {
-            publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(pubKeyBytes));
-
-            KeyStore ks = KeyStore.getInstance("JCEKS");
-            ks.load(new FileInputStream(client_path + username + ".cert"), "p".toCharArray());
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return publicKey;
-    }
-
-    private boolean validateResponse(PublicKey pubKey, String message, byte[] signature, boolean ack, long recvTimestamp, long newTimestamp, long timestamp, long nonce, long newNonce)
+    private boolean validateResponse(PublicKey pubKey, String message, byte[] signature)
     {
         boolean verified = true;
         try{
@@ -376,7 +353,7 @@ public class Client {
         } catch(Exception e){
             e.printStackTrace();
         }
-        return ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce && verified;
+        return verified;
     }
 
 }

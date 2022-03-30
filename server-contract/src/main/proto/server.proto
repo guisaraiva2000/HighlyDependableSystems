@@ -19,6 +19,8 @@ message OpenAccountRequest {
 
 message OpenAccountResponse {
   bool ack = 1;
+  bytes public_key = 2;
+  bytes signature = 3;
 }
 
 message SendAmountRequest {

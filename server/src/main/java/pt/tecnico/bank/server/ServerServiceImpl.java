@@ -45,10 +45,16 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     @Override
     public void openAccount(OpenAccountRequest request, StreamObserver<OpenAccountResponse> responseObserver) {
         try {
-            boolean ack = server.openAccount(request.getPublicKey(), request.getBalance());
+            String[] r = server.openAccount(request.getPublicKey(), request.getBalance());
+
+            boolean ack = Objects.equals(r[0], "true");
+            byte[] pubKey = r[1].getBytes(StandardCharsets.ISO_8859_1);
+            byte[] signature = r[2].getBytes(StandardCharsets.ISO_8859_1);
 
             
             OpenAccountResponse response = OpenAccountResponse.newBuilder().setAck(ack)
+                                                                            .setPublicKey(ByteString.copyFrom(pubKey))
+                                                                            .setSignature(ByteString.copyFrom(signature))
                                                                             .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
@@ -66,7 +72,8 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             long nonce = Long.parseLong(r[1]);
             long recvTimestamp = Long.parseLong(r[2]);
             long newTimestamp = Long.parseLong(r[3]);
-            byte[] signature = r[4].getBytes(StandardCharsets.UTF_8);
+            byte[] signature = r[4].getBytes(StandardCharsets.ISO_8859_1);
+
 
             try(FileOutputStream fos = new FileOutputStream(System.getProperty("user.dir") + "\\m.txt")){
                 fos.write(signature);
@@ -102,7 +109,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void checkAccount(CheckAccountRequest request, StreamObserver<CheckAccountResponse> responseObserver) {
         try {
             String[] r = server.checkAccount(request.getPublicKey());
-            byte[] signature = r[2].getBytes(StandardCharsets.UTF_8);
+            byte[] signature = r[2].getBytes(StandardCharsets.ISO_8859_1);
 
             CheckAccountResponse response = CheckAccountResponse.newBuilder()
                                                                 .setBalance(Integer.parseInt(r[0]))
@@ -126,7 +133,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             long nonce = Long.parseLong(r[1]);
             long recvTimestamp = Long.parseLong(r[2]);
             long newTimestamp = Long.parseLong(r[3]);
-            byte[] signature = r[4].getBytes(StandardCharsets.UTF_8);
+            byte[] signature = r[4].getBytes(StandardCharsets.ISO_8859_1);
 
             ReceiveAmountResponse response = ReceiveAmountResponse.newBuilder()
                                                                     .setAck(ack)
@@ -152,7 +159,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void audit(AuditRequest request, StreamObserver<AuditResponse> responseObserver) {
         try {
             String[] r = server.audit(request.getPublicKey());
-            byte[] signature = r[1].getBytes(StandardCharsets.UTF_8);
+            byte[] signature = r[1].getBytes(StandardCharsets.ISO_8859_1);
 
             AuditResponse response = AuditResponse.newBuilder().setTransferHistory(r[0])
                                                                 .setSignature(ByteString.copyFrom(signature))

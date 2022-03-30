@@ -9,6 +9,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.stream.Collectors;
+import java.io.FileInputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -21,12 +22,13 @@ import java.security.*;
 public class Server {
 
     private final String SERVER_PATH = System.getProperty("user.dir") + "\\KEYS\\";
+    private final String SERVER_PASS = "server";
 
     private final LinkedHashMap<PublicKey, User> users = new LinkedHashMap<>();
 
     public Server() {}
 
-    public synchronized boolean openAccount(ByteString pubKey, int balance) throws AccountAlreadyExistsException {
+    public synchronized String[] openAccount(ByteString pubKey, int balance) throws AccountAlreadyExistsException {
         PublicKey pubKeyBytes = keyToBytes(pubKey);
 
         if (users.containsKey(pubKeyBytes))
@@ -35,7 +37,9 @@ public class Server {
         User newUser = new User(pubKeyBytes, balance);
         users.put(pubKeyBytes, newUser);
 
-        return true;
+        String message = "true" + pubKeyBytes.toString();
+
+        return new String[]{"true", pubKeyBytes.toString() , new String(encrypt(message), StandardCharsets.ISO_8859_1)};
     }
 
     //TODO fix negative balance
@@ -91,7 +95,7 @@ public class Server {
         }
 
         String message = String.valueOf(users.get(pubKeyBytes).getBalance()) + pendingTransfersAsString ;
-        return new String[]{ String.valueOf(users.get(pubKeyBytes).getBalance()), pendingTransfersAsString , new String(encrypt(message), StandardCharsets.UTF_8)};
+        return new String[]{ String.valueOf(users.get(pubKeyBytes).getBalance()), pendingTransfersAsString , new String(encrypt(message), StandardCharsets.ISO_8859_1)};
     }
 
     public synchronized String[] receiveAmount(ByteString pubKeyString, ByteString signature, long nonce, long timestamp) throws AccountDoesNotExistsException, NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException {
@@ -109,7 +113,7 @@ public class Server {
         if (!validateMessage(pubKey, message, signatureBytes))
             throw new SignatureNotValidException();
     
-        //validateNonce(pubKey, nonce, timestamp);
+        validateNonce(pubKey, nonce, timestamp);
 
         User user = users.get(pubKey);
         LinkedList<Transfer> pendingTransfers = user.getPendingTransfers();
@@ -135,10 +139,10 @@ public class Server {
         LinkedList<Transfer> totalTransfers = users.get(pubKey).getTotalTransfers();
 
         if (totalTransfers == null)
-            return new String[]{"No transfers waiting to be acepted", new String(encrypt("No transfers waiting to be acepted"), StandardCharsets.UTF_8)};
+            return new String[]{"No transfers waiting to be acepted", new String(encrypt("No transfers waiting to be acepted"), StandardCharsets.ISO_8859_1)};
         
 
-        return new String[]{getTransfersAsString(totalTransfers), new String(encrypt(getTransfersAsString(totalTransfers)), StandardCharsets.UTF_8)};
+        return new String[]{getTransfersAsString(totalTransfers), new String(encrypt(getTransfersAsString(totalTransfers)), StandardCharsets.ISO_8859_1)};
     }
 
     // ------------------------------------ AUX -------------------------------------
@@ -182,7 +186,7 @@ public class Server {
         try{
             Signature sign = Signature.getInstance("SHA256withRSA");
             sign.initVerify(pubKey);
-            sign.update(message.getBytes(StandardCharsets.UTF_8));
+            sign.update(message.getBytes(StandardCharsets.ISO_8859_1));
             verified = sign.verify(signature);
         } catch(Exception e){
             e.printStackTrace();
@@ -193,17 +197,19 @@ public class Server {
     private byte[] encrypt(String message){
         byte[] signature = null;
         try{
-            byte[] key = Files.readAllBytes(Paths.get(SERVER_PATH + "private.key"));
+            KeyStore ks = KeyStore.getInstance("JCEKS");
+            ks.load(new FileInputStream(SERVER_PATH + SERVER_PASS + ".jks"), SERVER_PASS.toCharArray());
 
-            PrivateKey privKey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(key));
-            
+            PrivateKey privKey = (PrivateKey) ks.getKey(SERVER_PASS, SERVER_PASS.toCharArray());
+
             // SIGNATURE
             Signature sign = Signature.getInstance("SHA256withRSA");
             sign.initSign(privKey);
 
-            sign.update(message.getBytes(StandardCharsets.UTF_8));
+            sign.update(message.getBytes(StandardCharsets.ISO_8859_1));
             signature = sign.sign();
 
+            
         } catch(Exception e){
             e.printStackTrace();
             System.out.println(("Error in encryption"));
@@ -215,8 +221,8 @@ public class Server {
         long newTimestamp = System.currentTimeMillis() / 1000;
         String m = message + String.valueOf(nonce + 1) + timestamp + newTimestamp;
         byte[] signServer = encrypt(m);
-
+        
         return new String[]{message, String.valueOf(nonce + 1), String.valueOf(timestamp),
-                String.valueOf(newTimestamp), new String(signServer, StandardCharsets.UTF_8)};
+            String.valueOf(newTimestamp), new String(signServer, StandardCharsets.ISO_8859_1)};
     }
 }
