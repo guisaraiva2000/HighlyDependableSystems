@@ -1,4 +1,4 @@
-package pt.tecnico.bank.server.domain;
+package pt.tecnico.bank.tester.domain;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -27,7 +27,8 @@ public class ServerFrontend implements Closeable {
         PingResponse res = null;
         while (res == null) {
             try {
-                res = stub.ping(PingRequest.newBuilder().setInput(request.getInput()).build());
+                res = stub.withDeadlineAfter(2, TimeUnit.SECONDS)
+                        .ping(PingRequest.newBuilder().setInput(request.getInput()).build());
             } catch (StatusRuntimeException sre) {
                 exceptionHandler(sre);
             }
@@ -39,7 +40,7 @@ public class ServerFrontend implements Closeable {
         OpenAccountResponse res = null;
         while (res == null) {
             try {
-                res = stub.withDeadlineAfter(1, TimeUnit.SECONDS)
+                res = stub.withDeadlineAfter(2, TimeUnit.SECONDS)
                         .openAccount(OpenAccountRequest.newBuilder()
                                 .setPublicKey(request.getPublicKey())
                                 .setSignature(request.getSignature()).build());
@@ -54,7 +55,7 @@ public class ServerFrontend implements Closeable {
         SendAmountResponse res = null;
         while (res == null) {
             try {
-                res = stub.withDeadlineAfter(1, TimeUnit.SECONDS)
+                res = stub.withDeadlineAfter(2, TimeUnit.SECONDS)
                         .sendAmount(SendAmountRequest.newBuilder()
                                 .setAmount(request.getAmount())
                                 .setSourceKey(request.getSourceKey())
@@ -74,7 +75,7 @@ public class ServerFrontend implements Closeable {
         CheckAccountResponse res = null;
         while (res == null) {
             try {
-                res = stub.withDeadlineAfter(1, TimeUnit.SECONDS)
+                res = stub.withDeadlineAfter(2, TimeUnit.SECONDS)
                         .checkAccount(CheckAccountRequest.newBuilder()
                                 .setPublicKey(request.getPublicKey())
                                 .build());
@@ -89,7 +90,7 @@ public class ServerFrontend implements Closeable {
         ReceiveAmountResponse res = null;
         while (res == null) {
             try {
-                res = stub.withDeadlineAfter(1, TimeUnit.SECONDS)
+                res = stub.withDeadlineAfter(2, TimeUnit.SECONDS)
                         .receiveAmount(ReceiveAmountRequest.newBuilder()
                                 .setPublicKey(request.getPublicKey())
                                 .setSignature(request.getSignature())
@@ -107,7 +108,7 @@ public class ServerFrontend implements Closeable {
         AuditResponse res = null;
         while (res == null) {
             try {
-                res = stub.withDeadlineAfter(1, TimeUnit.SECONDS)
+                res = stub.withDeadlineAfter(2, TimeUnit.SECONDS)
                         .audit(AuditRequest.newBuilder()
                                 .setPublicKey(request.getPublicKey())
                                 .build());

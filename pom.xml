@@ -41,7 +41,7 @@
 	<modules>
 		<module>server-contract</module>
 		<module>server</module>
-		<module>server-tester</module>
+		<module>tester</module>
 		<module>client</module>
 	</modules>
 

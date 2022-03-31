@@ -1,4 +1,4 @@
-package pt.tecnico.bank.server;
+package pt.tecnico.bank.tester;
 
 import io.grpc.StatusRuntimeException;
 import org.junit.jupiter.api.*;

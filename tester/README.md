@@ -3,18 +3,7 @@
 
 ## Authors
 
-Group T03
-
-### Lead developer 
-
-Sara Ferreira 93756 [SaraCFerreira](https://github.com/SaraCFerreira)
-
-### Contributors
-
-Guilherme Saraiva 93717 [guisaraiva2000](https://github.com/guisaraiva2000)
-
-Afonso Jorge 93680 [Afonso-Jorge](https://github.com/Afonso-Jorge)
-
+Group T09
 
 ## About
 

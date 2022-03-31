@@ -1,4 +1,4 @@
-package pt.tecnico.bank.server;
+package pt.tecnico.bank.tester;
 
 import java.io.IOException;
 import java.util.Properties;

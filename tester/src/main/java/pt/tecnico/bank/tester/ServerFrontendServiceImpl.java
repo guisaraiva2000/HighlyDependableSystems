@@ -1,8 +1,8 @@
-package pt.tecnico.bank.server;
+package pt.tecnico.bank.tester;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import pt.tecnico.bank.server.domain.ServerFrontend;
+import pt.tecnico.bank.tester.domain.ServerFrontend;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 

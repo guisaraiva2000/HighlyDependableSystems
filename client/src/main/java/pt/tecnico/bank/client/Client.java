@@ -2,11 +2,9 @@ package pt.tecnico.bank.client;
 
 import com.google.protobuf.ByteString;
 
-import org.bouncycastle.asn1.cms.EncryptedContentInfo;
-
 import io.grpc.StatusRuntimeException;
 import pt.tecnico.bank.client.handlers.SecurityHandler;
-import pt.tecnico.bank.server.ServerFrontendServiceImpl;
+import pt.tecnico.bank.tester.ServerFrontendServiceImpl;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 import java.io.FileNotFoundException;
@@ -16,6 +14,9 @@ import java.security.SecureRandom;
 import java.security.cert.CertificateException;
 
 public class Client {
+
+    public static final String ANSI_GREEN = "\033[0;32m";
+    public static final String ANSI_RED = "\033[0;31m";
 
     private final ServerFrontendServiceImpl frontend;
     private final SecurityHandler securityHandler;
@@ -27,8 +28,7 @@ public class Client {
         this.securityHandler = new SecurityHandler(username);
     }
 
-    void open_account(String accountName, String password){
-
+    public String open_account(String accountName, String password){
         try {
             Key pubKey = securityHandler.getKey(accountName, password);
             byte[] encoded = pubKey.getEncoded();
@@ -51,22 +51,19 @@ public class Client {
 
             String message = ack + pubKey.toString();
 
-            if(securityHandler.validateResponse(securityHandler.getPublicKey("server"), message, newSignature)) {
-                System.out.println("\033[0;32m" + "Account with name " + accountName + " created");
-            } else {
-                mimWarn();
-            }
+            if(!securityHandler.validateResponse(securityHandler.getPublicKey("server"), message, newSignature))
+                return mimWarn();
 
         } catch (StatusRuntimeException e) {
-            printError(e);
+            handleError(e);
         } catch (Exception e){
-            e.printStackTrace();
+           return e.getMessage();
         }
+        return ANSI_GREEN + "Account with name " + accountName + " created";
     }
 
-    void send_amount(String senderAccount, String receiverAccount, int amount, String password){
+    public String send_amount(String senderAccount, String receiverAccount, int amount, String password){
         try {
-
             long nonce = new SecureRandom().nextLong();
             long timestamp = System.currentTimeMillis() / 1000;
 
@@ -97,31 +94,31 @@ public class Client {
 
             String newMessage = String.valueOf(ack) + origKey.toString() + String.valueOf(newNonce) + timestamp + newTimestamp;
 
-            if (securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
-                    ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce) {
-                System.out.println("\033[0;32m" + "Sent " + amount + " from " + senderAccount + " to " + receiverAccount);
-            } else {
-                mimWarn();
-            }
+            if (!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
+                    ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce))
+                return mimWarn();
 
         } catch (StatusRuntimeException e) {
-            printError(e);
+            return handleError(e);
         } catch (Exception e){
-            System.out.println("\033[0;31m" + "Error while sending amount");
-            e.printStackTrace();
+            return ANSI_RED + "Error while sending amount";
         }
+        return ANSI_GREEN + "Sent " + amount + " from " + senderAccount + " to " + receiverAccount;
     }
 
-    void check_account(String checkAccountName){
+    public String check_account(String checkAccountName){
+        int balance, pendentAmount;
+        String transfers;
+
         try {
             PublicKey key = securityHandler.getPublicKey(checkAccountName);
             CheckAccountRequest req = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded()))
                                                                         .build();
             CheckAccountResponse res = frontend.checkAccount(req);
 
-            int balance = res.getBalance();
-            int pendentAmount = res.getPendentAmount();
-            String transfers = res.getPendentTransfers();
+            balance = res.getBalance();
+            pendentAmount = res.getPendentAmount();
+            transfers = res.getPendentTransfers();
             long newTimestamp = res.getNewTimestamp();
             ByteString sig = res.getSignature();
             byte[] newSignature = new byte[256];
@@ -131,22 +128,23 @@ public class Client {
 
             long timeValidity = System.currentTimeMillis() / 1000 - newTimestamp;
 
-            if(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) && timeValidity <= VALIDITY_INTERVAL) {
-                System.out.println("\033[0;32m" + "Account Status:\n\t" +
-                        "- Balance: " + balance +
-                        "\n\t- On hold amount to send: " + pendentAmount +
-                        "\n\t- Pending transfers:" + transfers.replaceAll("-", "\n\t\t-"));
-            } else {
-                mimWarn();
-            }
+            if(!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature)
+                    && timeValidity <= VALIDITY_INTERVAL))
+                return mimWarn();
+
         } catch (StatusRuntimeException e) {
-            printError(e);
+            return handleError(e);
         } catch (FileNotFoundException | CertificateException e) {
-            e.printStackTrace();
+            return e.getMessage();
         }
+        return ANSI_GREEN + "Account Status:\n\t" +
+                "- Balance: " + balance +
+                "\n\t- On hold amount to send: " + pendentAmount +
+                "\n\t- Pending transfers:" + transfers.replaceAll("-", "\n\t\t-");
     }
 
-    void receive_amount(String accountName, String password){
+    public String receive_amount(String accountName, String password){
+        int recvAmount;
         try {
             long nonce = new SecureRandom().nextLong();
             long timestamp = System.currentTimeMillis() / 1000;
@@ -165,7 +163,7 @@ public class Client {
                     .build();
             ReceiveAmountResponse response = frontend.receiveAmount(req);
 
-            int recvAmount = response.getRecvAmount();
+            recvAmount = response.getRecvAmount();
             long recvTimestamp = response.getRecvTimestamp();
             long newTimestamp = response.getNewTimestamp();
             long newNonce = response.getNonce();
@@ -175,21 +173,20 @@ public class Client {
 
             String newMessage = String.valueOf(recvAmount) + key.toString() + String.valueOf(newNonce) + timestamp + newTimestamp;
 
-            if (securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
-                    recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce) {
-                System.out.println("\033[0;32m" + "Amount deposited to your account: " + recvAmount);
-            } else {
-                mimWarn();
-            }
+            if (!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
+                    recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce))
+                return mimWarn();
 
         } catch (StatusRuntimeException e) {
-            printError(e);
+            return handleError(e);
         } catch (FileNotFoundException | CertificateException e) {
-            e.printStackTrace();
+            return e.getMessage();
         }
+        return ANSI_GREEN + "Amount deposited to your account: " + recvAmount;
     }
 
-    void audit(String checkAccountName){
+    public String audit(String checkAccountName){
+        String transfers;
         try {
             PublicKey key = securityHandler.getPublicKey(checkAccountName);
 
@@ -197,7 +194,7 @@ public class Client {
                                                         .build();
             AuditResponse res = frontend.auditResponse(req);
 
-            String transfers = res.getTransferHistory();
+            transfers = res.getTransferHistory();
             long newTimestamp = res.getNewTimestamp();
             ByteString sig = res.getSignature();
             byte[] newSignature = new byte[256];
@@ -206,28 +203,27 @@ public class Client {
             long timeValidity = System.currentTimeMillis() / 1000 - newTimestamp;
             String newMessage = transfers + newTimestamp;
 
-            if(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) && timeValidity <= VALIDITY_INTERVAL) {
-                System.out.println("\033[0;32m" + "Total transfers:" + transfers.replaceAll("-", "\n\t-"));
-            } else {
-                mimWarn();
-            }
+            if(!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature)
+                    && timeValidity <= VALIDITY_INTERVAL))
+                return mimWarn();
 
         } catch (StatusRuntimeException e) {
-            printError(e);
+            return handleError(e);
         } catch (FileNotFoundException | CertificateException e) {
-            e.printStackTrace();
+            return e.getMessage();
         }
+        return ANSI_GREEN + "Total transfers:" + transfers.replaceAll("-", "\n\t-");
     }
 
-    private void printError(StatusRuntimeException e) {
+    private String handleError(StatusRuntimeException e) {
         if (e.getStatus().getDescription() != null && e.getStatus().getDescription().equals("io exception")) {
-            System.out.println("\033[0;31m" + "Warn: Server not responding!");
+            return ANSI_RED + "Warn: Server not responding!";
         } else {
-            System.out.println("\033[0;31m" + e.getStatus().getDescription());
+            return ANSI_RED + e.getStatus().getDescription();
         }
     }
 
-    private void mimWarn() {
-        System.out.println("\033[0;31m" + "WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
+    private String mimWarn() {
+         return ANSI_RED + "WARNING! Invalid message from server. Someone might be intercepting your messages with the server.";
     }
 }

@@ -3,18 +3,7 @@
 
 ## Authors
 
-Group T03
-
-
-### Lead developer 
-
-Guilherme Saraiva 93717 [guisaraiva2000](https://github.com/guisaraiva2000)
-
-### Contributors
-
-Afonso Jorge 93680 [Afonso-Jorge](https://github.com/Afonso-Jorge)
-
-Sara Ferreira 93756 [SaraCFerreira](https://github.com/SaraCFerreira)
+Group T09
 
 
 ## About
@@ -29,7 +18,7 @@ The server runs in a stand-alone process.
 To compile and run the first server:
 
 ```
-mvn compile exec:java -Dexec.args="localhost 2181 localhost 8081 1 ../demo/users.csv ../demo/stations.csv initRec"
+mvn compile exec:java 
 ```
 
 When running, the server await connections from clients.

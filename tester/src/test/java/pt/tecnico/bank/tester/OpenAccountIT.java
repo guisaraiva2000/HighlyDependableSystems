@@ -1,4 +1,4 @@
-package pt.tecnico.bank.server;
+package pt.tecnico.bank.tester;
 
 import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;

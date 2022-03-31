@@ -1,13 +1,12 @@
-package pt.tecnico.bank.server;
-
+package pt.tecnico.bank.tester;
 
 import io.grpc.StatusRuntimeException;
 import pt.tecnico.bank.server.grpc.Server.*;
 
-public class ServerTester {
+public class Tester {
 	
 	public static void main(String[] args) {
-		System.out.println(ServerTester.class.getSimpleName());
+		System.out.println(Tester.class.getSimpleName());
 
 		ServerFrontendServiceImpl frontend = new ServerFrontendServiceImpl();
 

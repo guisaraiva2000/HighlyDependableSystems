@@ -9,7 +9,7 @@
 		<version>1.0.0-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>server-tester</artifactId>
+	<artifactId>tester</artifactId>
 	<packaging>jar</packaging>
 	<name>${project.artifactId}</name>
 
@@ -22,7 +22,7 @@
 		<!-- instance number -->
 		<instance>1</instance>
 
-		<mainclass>pt.tecnico.bank.server.ServerTester</mainclass>
+		<mainclass>pt.tecnico.bank.tester.Tester</mainclass>
 
 	</properties>
 

@@ -1,7 +1,7 @@
 package pt.tecnico.bank.client;
 
 import io.grpc.StatusRuntimeException;
-import pt.tecnico.bank.server.ServerFrontendServiceImpl;
+import pt.tecnico.bank.tester.ServerFrontendServiceImpl;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -71,36 +71,36 @@ public class ClientMain {
                     switch (tokens[0]) {
                         case "open":
                             if (tokens.length == 3) {
-                                client.open_account(tokens[1], tokens[2]);
+                                System.out.println(client.open_account(tokens[1], tokens[2]));
                             } else {
                                 System.err.println(ANSI_RED + "ERROR: Usage: open %accountName% %password%");
                             }
                             break;
                         case "send":
                             if (tokens.length == 5) {
-                                client.send_amount(tokens[1], tokens[2],
-                                        Integer.parseInt(tokens[3]), tokens[4]);
+                                System.out.println(client.send_amount(tokens[1], tokens[2],
+                                        Integer.parseInt(tokens[3]), tokens[4]));
                             } else {
                                 System.err.println(ANSI_RED + "ERROR: Usage: send %sender_account% %receiver_account% %amount% %password%");
                             }
                             break;
                         case "check":
                             if (tokens.length == 2) {
-                                client.check_account(tokens[1]);
+                                System.out.println(client.check_account(tokens[1]));
                             } else {
                                 System.err.println(ANSI_RED + "ERROR: Usage: check %account_name%");
                             }
                             break;
                         case "receive":
                             if (tokens.length == 3) {
-                                client.receive_amount(tokens[1], tokens[2]);
+                                System.out.println(client.receive_amount(tokens[1], tokens[2]));
                             } else {
                                 System.err.println(ANSI_RED + "ERROR: Usage: receive %account_name% %password%");
                             }
                             break;
                         case "audit":
                             if (tokens.length == 2) {
-                                client.audit(tokens[1]);
+                                System.out.println(client.audit(tokens[1]));
                             } else {
                                 System.err.println(ANSI_RED + "ERROR: Usage: audit %account_name%");
                             }

@@ -1,11 +1,11 @@
 package pt.tecnico.bank.server.domain;
 
-import com.google.longrunning.GetOperationRequestOrBuilder;
 import com.google.protobuf.ByteString;
-
-import io.grpc.netty.shaded.io.netty.handler.codec.AsciiHeadersEncoder.NewlineType;
 import pt.tecnico.bank.server.domain.exception.*;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -16,15 +16,6 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.stream.Collectors;
-
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
-
-import java.io.FileInputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
 /**
  * Facade class.
@@ -88,7 +79,6 @@ public class Server implements Serializable {
         byte[] signatureBytes = new byte[256];
         signature.copyTo(signatureBytes, 0);
 
-        // validate nonce too
         if (!validateMessage(sourceKey, message, signatureBytes))
             throw new SignatureNotValidException();
 
@@ -150,7 +140,6 @@ public class Server implements Serializable {
         byte[] signatureBytes = new byte[256];
         signature.copyTo(signatureBytes, 0);
 
-        // validate nonce too
         if (!validateMessage(pubKey, message, signatureBytes))
             throw new SignatureNotValidException();
 
@@ -267,17 +256,16 @@ public class Server implements Serializable {
         long newTimestamp = System.currentTimeMillis() / 1000;
         
         String[] response = new String[message.length+4];
-        String m = "";
+        StringBuilder m = new StringBuilder();
 
         int i;
         for(i = 0; i < message.length; i++){
             response[i] = message[i];
-            m += message[i];
+            m.append(message[i]);
         }
 
-        m += String.valueOf(nonce + 1) + timestamp + newTimestamp;
-        System.out.println(m);
-        byte[] signServer = encrypt(m);
+        m.append(nonce + 1).append(timestamp).append(newTimestamp);
+        byte[] signServer = encrypt(m.toString());
         
         response[i] = String.valueOf(nonce + 1);
         response[i+1] = String.valueOf(timestamp);

@@ -1,4 +1,4 @@
-# Contract
+# Client
 
 
 ## Authors
@@ -8,17 +8,15 @@ Group T09
 
 ## About
 
-This library module contains protocol buffers (protobuf) definitions for a specific server.
-
-The interface is shared by the server, that implements it, and by the client, that needs it to make remote calls.
+This is a CLI (Command-Line Interface) application.
 
 
 ## Instructions for using Maven
 
-To compile and install:
+To compile and run using _exec_ plugin:
 
 ```
-mvn install
+mvn compile exec:java 
 ```
 
 

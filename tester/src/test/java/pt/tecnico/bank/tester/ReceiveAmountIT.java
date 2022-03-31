@@ -1,4 +1,4 @@
-package pt.tecnico.bank.server;
+package pt.tecnico.bank.tester;
 
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.AfterEach;
@@ -9,7 +9,7 @@ import pt.tecnico.bank.server.grpc.Server.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class AuditIT {
+public class ReceiveAmountIT {
 
     private ServerFrontendServiceImpl frontend;
 
@@ -25,32 +25,34 @@ public class AuditIT {
     }
 
     @Test
-    public void AuditOKTest() {
+    public void ReceiveAmountOKTest() {
         OpenAccountRequest oareq = OpenAccountRequest.newBuilder()
-                .setPublicKey(ByteString.copyFromUtf8("12345678"))
+                .setPublicKey(ByteString.copyFromUtf8("123456789"))
                 .build();
         frontend.openAccount(oareq);
 
-        OpenAccountRequest oareq2 = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("87654321")).build();
+        OpenAccountRequest oareq2 = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("987654321")).build();
         frontend.openAccount(oareq2);
 
         SendAmountRequest sareq = SendAmountRequest.newBuilder()
-                .setSourceKey(ByteString.copyFromUtf8("12345678"))
-                .setDestinationKey(ByteString.copyFromUtf8("87654321"))
+                .setSourceKey(ByteString.copyFromUtf8("123456789"))
+                .setDestinationKey(ByteString.copyFromUtf8("987654321"))
                 .setAmount(20).build();
         frontend.sendAmount(sareq);
 
-        ReceiveAmountRequest rareq = ReceiveAmountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("87654321")).build();
-        frontend.receiveAmount(rareq);
+        ReceiveAmountRequest req = ReceiveAmountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("987654321")).build();
+        ReceiveAmountResponse res = frontend.receiveAmount(req);
 
-        AuditRequest req = AuditRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("12345678")).build();
-        AuditResponse res = frontend.auditResponse(req);
+        assertEquals(20, res.getRecvAmount());
 
-        AuditRequest req2 = AuditRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("87654321")).build();
-        AuditResponse res2 = frontend.auditResponse(req2);
+        CheckAccountRequest careq = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("987654321")).build();
+        CheckAccountResponse cares = frontend.checkAccount(careq);
+        assertEquals(20, cares.getBalance());
+        assertEquals("", cares.getPendentTransfers());
 
-        assertEquals("{destination=87654321, amount=-20}", res.getTransferHistory());
-        assertEquals("{destination=12345678, amount=20}", res2.getTransferHistory());
+        CheckAccountRequest careq2 = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("123456789")).build();
+        CheckAccountResponse cares2 = frontend.checkAccount(careq2);
+        assertEquals(80, cares2.getBalance());
 
     }
 
