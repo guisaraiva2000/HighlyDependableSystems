@@ -13,6 +13,9 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.stream.Collectors;
+import java.io.FileInputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 /**
  * Facade class.

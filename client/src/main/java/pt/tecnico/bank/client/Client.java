@@ -1,6 +1,9 @@
 package pt.tecnico.bank.client;
 
 import com.google.protobuf.ByteString;
+
+import org.bouncycastle.asn1.cms.EncryptedContentInfo;
+
 import io.grpc.StatusRuntimeException;
 import pt.tecnico.bank.client.handlers.SecurityHandler;
 import pt.tecnico.bank.server.ServerFrontendServiceImpl;
@@ -28,9 +31,12 @@ public class Client {
             Key pubKey = securityHandler.getKey(accountName, password);
             byte[] encoded = pubKey.getEncoded();
 
+            byte[] signature = securityHandler.encrypt(accountName, pubKey.toString(), password);
+
             OpenAccountRequest req = OpenAccountRequest.newBuilder()
                     .setPublicKey(ByteString.copyFrom(encoded))
                     .setBalance(amount)
+                    .setSignature(ByteString.copyFrom(signature))
                     .build();
 
             OpenAccountResponse res = frontend.openAccount(req);
@@ -39,12 +45,12 @@ public class Client {
             ByteString keyString = res.getPublicKey();
             byte[] key = new byte[698];
             keyString.copyTo(key,0);
-            byte[] signature = new byte[256];
-            res.getSignature().copyTo(signature,0);
+            byte[] newSignature = new byte[256];
+            res.getSignature().copyTo(newSignature,0);
 
             String message = ack + pubKey.toString();
 
-            if(securityHandler.validateResponse(securityHandler.getPublicKey("server"), message, signature)) {
+            if(securityHandler.validateResponse(securityHandler.getPublicKey("server"), message, newSignature)) {
                 System.out.println("\033[0;32m" + "Account with name " + accountName + " created");
             } else {
                 mimWarn();
