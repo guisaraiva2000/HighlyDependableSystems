@@ -151,13 +151,14 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             String[] r = server.receiveAmount(request.getPublicKey(), request.getSignature(), request.getNonce(), request.getTimestamp());
 
             int recvAmount = Integer.parseInt(r[0]);
-            long nonce = Long.parseLong(r[1]);
-            long recvTimestamp = Long.parseLong(r[2]);
-            long newTimestamp = Long.parseLong(r[3]);
-            byte[] signature = r[4].getBytes(StandardCharsets.ISO_8859_1);
+            long nonce = Long.parseLong(r[2]);
+            long recvTimestamp = Long.parseLong(r[3]);
+            long newTimestamp = Long.parseLong(r[4]);
+            byte[] signature = r[5].getBytes(StandardCharsets.ISO_8859_1);
 
             ReceiveAmountResponse response = ReceiveAmountResponse.newBuilder()
                                                                     .setRecvAmount(recvAmount)
+                                                                    .setPublicKey(r[1])
                                                                     .setNonce(nonce)
                                                                     .setRecvTimestamp(recvTimestamp)
                                                                     .setNewTimestamp(newTimestamp)

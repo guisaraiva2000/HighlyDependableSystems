@@ -97,8 +97,6 @@ public class Client {
 
             String newMessage = String.valueOf(ack) + origKey.toString() + String.valueOf(newNonce) + timestamp + newTimestamp;
 
-            System.out.println(newMessage);
-
             if (securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
                     ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce) {
                 System.out.println("\033[0;32m" + "Sent " + amount + " from " + senderAccount + " to " + receiverAccount);
