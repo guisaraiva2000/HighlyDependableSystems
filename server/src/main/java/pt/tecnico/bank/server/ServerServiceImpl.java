@@ -23,7 +23,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
 
     public ServerServiceImpl() {
         this.server = new Server();
-        this.server.loadState();
+        //this.server.loadState();
     }
 
     @Override
@@ -50,7 +50,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             byte[] pubKey = r[1].getBytes(StandardCharsets.ISO_8859_1);
             byte[] signature = r[2].getBytes(StandardCharsets.ISO_8859_1);
 
-            
+
             OpenAccountResponse response = OpenAccountResponse.newBuilder().setAck(ack)
                                                                             .setPublicKey(ByteString.copyFrom(pubKey))
                                                                             .setSignature(ByteString.copyFrom(signature))

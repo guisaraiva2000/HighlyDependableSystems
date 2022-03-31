@@ -40,7 +40,7 @@ public class Server implements Serializable {
         User newUser = new User(pubKeyBytes, balance);
         users.put(pubKeyBytes, newUser);
 
-        saveState();
+        //saveState();
 
         String message = "true" + pubKeyBytes.toString();
 
@@ -251,13 +251,9 @@ public class Server implements Serializable {
 
     public void loadState() {
         if (!DATA_PATH.toFile().exists()) {
-            try {
-                Files.createFile(DATA_PATH);
+                //Files.createFile(DATA_PATH);
                 saveState();
                 return;
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
         }
 
         try (FileInputStream fis = new FileInputStream(DATA_PATH.toString()); ObjectInputStream ois = new ObjectInputStream(fis)) {
@@ -282,9 +278,7 @@ public class Server implements Serializable {
             Path tmpPathFile = File.createTempFile("atomic", "tmp", new File(tmp_path.toString())).toPath();
             Files.write(tmpPathFile, userBytes, StandardOpenOption.APPEND);
 
-
-            Files.move(tmp_path, DATA_PATH, StandardCopyOption.ATOMIC_MOVE);
-            System.out.println("cona");
+            Files.move(tmp_path, Paths.get(System.getProperty("user.dir"), "storage", "dataa.txt"), StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException io) {
             io.printStackTrace();
         }
