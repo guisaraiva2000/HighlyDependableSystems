@@ -27,7 +27,7 @@ public class CheckAccountIT {
     public void CheckAccountOKTest() {
         OpenAccountRequest oareq = OpenAccountRequest.newBuilder()
                 .setPublicKey(ByteString.copyFromUtf8("1234567"))
-                .setBalance(100).build();
+                .build();
         frontend.openAccount(oareq);
 
         OpenAccountRequest oareq2 = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("7654321")).build();

@@ -14,6 +14,10 @@ import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Objects;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+
 import static io.grpc.Status.*;
 
 
@@ -44,7 +48,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     @Override
     public void openAccount(OpenAccountRequest request, StreamObserver<OpenAccountResponse> responseObserver) {
         try {
-            String[] r = server.openAccount(request.getPublicKey(), request.getBalance());
+            String[] r = server.openAccount(request.getPublicKey(), request.getSignature());
 
             boolean ack = Objects.equals(r[0], "true");
             byte[] pubKey = r[1].getBytes(StandardCharsets.ISO_8859_1);
@@ -61,9 +65,18 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
         } catch (AccountAlreadyExistsException e) {
             responseObserver.onError(ALREADY_EXISTS.withDescription(e.getMessage()).asRuntimeException());
         } catch (InvalidKeySpecException | IOException | NoSuchAlgorithmException | UnrecoverableKeyException |
-                CertificateException | KeyStoreException | SignatureException | InvalidKeyException e) {
+                CertificateException | KeyStoreException | SignatureException | InvalidKeyException | IllegalBlockSizeException e) {
             e.printStackTrace();
             responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException());
+        } catch (BadPaddingException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        } catch (NoSuchPaddingException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        } catch (SignatureNotValidException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
         }
     }
 
@@ -71,15 +84,17 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void sendAmount(SendAmountRequest request, StreamObserver<SendAmountResponse> responseObserver) {
         try {
             String[] r = server.sendAmount(request.getSourceKey(), request.getDestinationKey(), request.getAmount(), request.getNonce(), request.getTimestamp(), request.getSignature());
-           
+            
             boolean ack = Objects.equals(r[0], "true");
-            long nonce = Long.parseLong(r[1]);
-            long recvTimestamp = Long.parseLong(r[2]);
-            long newTimestamp = Long.parseLong(r[3]);
-            byte[] signature = r[4].getBytes(StandardCharsets.ISO_8859_1);
+
+            long nonce = Long.parseLong(r[2]);
+            long recvTimestamp = Long.parseLong(r[3]);
+            long newTimestamp = Long.parseLong(r[4]);
+            byte[] signature = r[5].getBytes(StandardCharsets.ISO_8859_1);
 
             SendAmountResponse response = SendAmountResponse.newBuilder()
                                                             .setAck(ack)
+                                                            .setPublicKey(r[1])
                                                             .setNonce(nonce)
                                                             .setRecvTimestamp(recvTimestamp)
                                                             .setNewTimestamp(newTimestamp)
@@ -108,12 +123,14 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void checkAccount(CheckAccountRequest request, StreamObserver<CheckAccountResponse> responseObserver) {
         try {
             String[] r = server.checkAccount(request.getPublicKey());
-            byte[] signature = r[3].getBytes(StandardCharsets.ISO_8859_1);
+            long newTimestamp = Long.parseLong(r[3]);
+            byte[] signature = r[4].getBytes(StandardCharsets.ISO_8859_1);
 
             CheckAccountResponse response = CheckAccountResponse.newBuilder()
                                                                 .setBalance(Integer.parseInt(r[0]))
                                                                 .setPendentAmount(Integer.parseInt(r[1]))
                                                                 .setPendentTransfers(r[2])
+                                                                .setNewTimestamp(newTimestamp)
                                                                 .setSignature(ByteString.copyFrom(signature))
                                                                 .build();
             responseObserver.onNext(response);
@@ -165,9 +182,11 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void audit(AuditRequest request, StreamObserver<AuditResponse> responseObserver) {
         try {
             String[] r = server.audit(request.getPublicKey());
-            byte[] signature = r[1].getBytes(StandardCharsets.ISO_8859_1);
+            long newTimestamp = Long.parseLong(r[1]);
+            byte[] signature = r[2].getBytes(StandardCharsets.ISO_8859_1);
 
             AuditResponse response = AuditResponse.newBuilder().setTransferHistory(r[0])
+                                                                .setNewTimestamp(newTimestamp)
                                                                 .setSignature(ByteString.copyFrom(signature))
                                                                 .build();
             responseObserver.onNext(response);

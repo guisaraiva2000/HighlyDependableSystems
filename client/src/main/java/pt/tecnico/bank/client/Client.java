@@ -19,6 +19,7 @@ public class Client {
 
     private final ServerFrontendServiceImpl frontend;
     private final SecurityHandler securityHandler;
+    private final int VALIDITY_INTERVAL = 60 * 10;
 
 
     public Client(ServerFrontendServiceImpl frontend, String username){
@@ -26,7 +27,8 @@ public class Client {
         this.securityHandler = new SecurityHandler(username);
     }
 
-    void open_account(String accountName, int amount, String password){
+    void open_account(String accountName, String password){
+
         try {
             Key pubKey = securityHandler.getKey(accountName, password);
             byte[] encoded = pubKey.getEncoded();
@@ -35,7 +37,6 @@ public class Client {
 
             OpenAccountRequest req = OpenAccountRequest.newBuilder()
                     .setPublicKey(ByteString.copyFrom(encoded))
-                    .setBalance(amount)
                     .setSignature(ByteString.copyFrom(signature))
                     .build();
 
@@ -94,7 +95,9 @@ public class Client {
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature,0);
 
-            String newMessage = String.valueOf(ack) + String.valueOf(newNonce) + timestamp + newTimestamp;
+            String newMessage = String.valueOf(ack) + origKey.toString() + String.valueOf(newNonce) + timestamp + newTimestamp;
+
+            System.out.println(newMessage);
 
             if (securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
                     ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce) {
@@ -111,22 +114,26 @@ public class Client {
         }
     }
 
-    void check_account(String accountName){
+    void check_account(String checkAccountName){
         try {
-            PublicKey key = securityHandler.getPublicKey(accountName);
-            CheckAccountRequest req = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded())).build();
+            PublicKey key = securityHandler.getPublicKey(checkAccountName);
+            CheckAccountRequest req = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded()))
+                                                                        .build();
             CheckAccountResponse res = frontend.checkAccount(req);
 
             int balance = res.getBalance();
             int pendentAmount = res.getPendentAmount();
             String transfers = res.getPendentTransfers();
+            long newTimestamp = res.getNewTimestamp();
             ByteString sig = res.getSignature();
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature,0);
 
-            String newMessage = String.valueOf(balance) + pendentAmount + transfers;
+            String newMessage = String.valueOf(balance) + pendentAmount + transfers + newTimestamp;
 
-            if(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature)) {
+            long timeValidity = System.currentTimeMillis() / 1000 - newTimestamp;
+
+            if(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) && timeValidity <= VALIDITY_INTERVAL) {
                 System.out.println("\033[0;32m" + "Account Status:\n\t" +
                         "- Balance: " + balance +
                         "\n\t- On hold amount to send: " + pendentAmount +
@@ -168,7 +175,7 @@ public class Client {
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature, 0);
 
-            String newMessage = String.valueOf(recvAmount) + String.valueOf(newNonce) + timestamp + newTimestamp;
+            String newMessage = String.valueOf(recvAmount) + key.toString() + String.valueOf(newNonce) + timestamp + newTimestamp;
 
             if (securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
                     recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce) {
@@ -184,18 +191,24 @@ public class Client {
         }
     }
 
-    void audit(String accountName){
+    void audit(String checkAccountName){
         try {
-            PublicKey key = securityHandler.getPublicKey(accountName);
-            AuditRequest req = AuditRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded())).build();
+            PublicKey key = securityHandler.getPublicKey(checkAccountName);
+
+            AuditRequest req = AuditRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded()))
+                                                        .build();
             AuditResponse res = frontend.auditResponse(req);
 
             String transfers = res.getTransferHistory();
+            long newTimestamp = res.getNewTimestamp();
             ByteString sig = res.getSignature();
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature,0);
 
-            if(securityHandler.validateResponse(securityHandler.getPublicKey("server"), transfers, newSignature)) {
+            long timeValidity = System.currentTimeMillis() / 1000 - newTimestamp;
+            String newMessage = transfers + newTimestamp;
+
+            if(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) && timeValidity <= VALIDITY_INTERVAL) {
                 System.out.println("\033[0;32m" + "Total transfers:" + transfers.replaceAll("-", "\n\t-"));
             } else {
                 mimWarn();

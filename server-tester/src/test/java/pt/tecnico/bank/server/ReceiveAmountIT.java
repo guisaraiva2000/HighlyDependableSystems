@@ -28,7 +28,7 @@ public class ReceiveAmountIT {
     public void ReceiveAmountOKTest() {
         OpenAccountRequest oareq = OpenAccountRequest.newBuilder()
                 .setPublicKey(ByteString.copyFromUtf8("123456789"))
-                .setBalance(100).build();
+                .build();
         frontend.openAccount(oareq);
 
         OpenAccountRequest oareq2 = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("987654321")).build();

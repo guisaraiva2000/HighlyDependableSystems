@@ -14,8 +14,7 @@ message PingResponse {
 
 message OpenAccountRequest {
   bytes public_key = 1;
-  int32 balance = 2;
-  bytes signature = 3;
+  bytes signature = 2;
 }
 
 message OpenAccountResponse {
@@ -35,21 +34,24 @@ message SendAmountRequest {
 
 message SendAmountResponse {
   bool ack = 1;
-  int64 nonce = 2;
-  int64 recv_timestamp = 3;
-  int64 new_timestamp = 4;
-  bytes signature = 5;
+  string public_key = 2;
+  int64 nonce = 3;
+  int64 recv_timestamp = 4;
+  int64 new_timestamp = 5;
+  bytes signature = 6;
 }
 
 message CheckAccountRequest {
   bytes public_key = 1;
+  bytes client_key = 2;
 }
 
 message CheckAccountResponse {
   int32 balance = 1;
   int32 pendent_amount = 2;
   string pendent_transfers = 3;
-  bytes signature = 4;
+  int64 new_timestamp = 4;
+  bytes signature = 5;
 }
 
 message ReceiveAmountRequest {
@@ -69,11 +71,13 @@ message ReceiveAmountResponse {
 
 message AuditRequest {
   bytes public_key = 1;
+  bytes client_key = 2;
 }
 
 message AuditResponse {
   string transfer_history = 1;
-  bytes signature = 2;
+  int64 new_timestamp = 2;
+  bytes signature = 3;
 }
 
 service ServerService {

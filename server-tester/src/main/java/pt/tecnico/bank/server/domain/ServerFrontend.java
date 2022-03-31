@@ -42,7 +42,7 @@ public class ServerFrontend implements Closeable {
                 res = stub.withDeadlineAfter(1, TimeUnit.SECONDS)
                         .openAccount(OpenAccountRequest.newBuilder()
                                 .setPublicKey(request.getPublicKey())
-                                .setBalance(request.getBalance()).build());
+                                .setSignature(request.getSignature()).build());
             } catch (StatusRuntimeException sre) {
                 exceptionHandler(sre);
             }

@@ -70,10 +70,10 @@ public class ClientMain {
 
                     switch (tokens[0]) {
                         case "open":
-                            if (tokens.length == 4) {
-                                client.open_account(tokens[1], Integer.parseInt(tokens[2]), tokens[3]);
+                            if (tokens.length == 3) {
+                                client.open_account(tokens[1], tokens[2]);
                             } else {
-                                System.err.println(ANSI_RED + "ERROR: Usage: open %accountName% %amount% %password%");
+                                System.err.println(ANSI_RED + "ERROR: Usage: open %accountName% %password%");
                             }
                             break;
                         case "send":
@@ -144,11 +144,11 @@ public class ClientMain {
     private static void displayCommands() {
         String ANSI_CYAN = "\u001B[36m";
         System.out.println(ANSI_CYAN + "|-------------------------- Bank Operations ------------------------|");
-        System.out.println(ANSI_CYAN + "| open    %accountName% %amount% %password%                         |");
+        System.out.println(ANSI_CYAN + "| open    %accountName% %password%                                  |");
         System.out.println(ANSI_CYAN + "| send    %sender_account% %receiver_account% %amount% %password%   |");
-        System.out.println(ANSI_CYAN + "| check   %account_name%                                            |");
+        System.out.println(ANSI_CYAN + "| check   %account_name% %client_account_name%                      |");
         System.out.println(ANSI_CYAN + "| receive %account_name% %password%                                 |");
-        System.out.println(ANSI_CYAN + "| audit   %account_name%                                            |");
+        System.out.println(ANSI_CYAN + "| audit   %account_name% %client_account_name%                      |");
         System.out.println(ANSI_CYAN + "|-------------------------------------------------------------------|");
     }
 }

@@ -28,7 +28,7 @@ public class AuditIT {
     public void AuditOKTest() {
         OpenAccountRequest oareq = OpenAccountRequest.newBuilder()
                 .setPublicKey(ByteString.copyFromUtf8("12345678"))
-                .setBalance(100).build();
+                .build();
         frontend.openAccount(oareq);
 
         OpenAccountRequest oareq2 = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("87654321")).build();
