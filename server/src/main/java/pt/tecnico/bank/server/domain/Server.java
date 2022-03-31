@@ -1,19 +1,18 @@
 package pt.tecnico.bank.server.domain;
 
 import com.google.protobuf.ByteString;
-
 import pt.tecnico.bank.server.domain.exception.*;
 
 import java.io.*;
-import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.security.*;
+import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.stream.Collectors;
-import java.nio.charset.StandardCharsets;
-import java.security.*;
 
 /**
  * Facade class.
@@ -31,7 +30,9 @@ public class Server implements Serializable {
     public Server() {
     }
 
-    public synchronized String[] openAccount(ByteString pubKey, int balance) throws AccountAlreadyExistsException, IOException {
+    public synchronized String[] openAccount(ByteString pubKey, int balance)
+            throws AccountAlreadyExistsException, IOException, NoSuchAlgorithmException, InvalidKeySpecException,
+            UnrecoverableKeyException, CertificateException, KeyStoreException, SignatureException, InvalidKeyException {
         PublicKey pubKeyBytes = keyToBytes(pubKey);
 
         if (users.containsKey(pubKeyBytes))
@@ -40,15 +41,20 @@ public class Server implements Serializable {
         User newUser = new User(pubKeyBytes, balance);
         users.put(pubKeyBytes, newUser);
 
-        //saveState();
+        saveState();
 
         String message = "true" + pubKeyBytes.toString();
 
         return new String[]{"true", pubKeyBytes.toString() , new String(encrypt(message), StandardCharsets.ISO_8859_1)};
     }
 
-    public synchronized String[] sendAmount(ByteString sourceKeyString, ByteString destinationKeyString, int amount, long nonce, long timestamp, ByteString signature)
-            throws AccountDoesNotExistsException, SameAccountException, NotEnoughBalanceException, NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException {
+    public synchronized String[] sendAmount(ByteString sourceKeyString, ByteString destinationKeyString, int amount,
+                                            long nonce, long timestamp, ByteString signature)
+            throws AccountDoesNotExistsException, SameAccountException, NotEnoughBalanceException,
+            NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException, NoSuchAlgorithmException,
+            InvalidKeySpecException, UnrecoverableKeyException, CertificateException, KeyStoreException, IOException,
+            SignatureException, InvalidKeyException {
+
         PublicKey sourceKey = keyToBytes(sourceKeyString);
         PublicKey destinationKey = keyToBytes(destinationKeyString);
 
@@ -80,7 +86,8 @@ public class Server implements Serializable {
         return createResponse("true", nonce, timestamp);
     }
 
-    public synchronized String[] checkAccount(ByteString pubKey) throws AccountDoesNotExistsException {
+    public synchronized String[] checkAccount(ByteString pubKey) throws AccountDoesNotExistsException,
+            NoSuchAlgorithmException, InvalidKeySpecException, UnrecoverableKeyException, CertificateException, KeyStoreException, IOException, SignatureException, InvalidKeyException {
         PublicKey pubKeyBytes = keyToBytes(pubKey);
 
         if (!(users.containsKey(pubKeyBytes)))
@@ -104,7 +111,10 @@ public class Server implements Serializable {
         };
     }
 
-    public synchronized String[] receiveAmount(ByteString pubKeyString, ByteString signature, long nonce, long timestamp) throws AccountDoesNotExistsException, NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException {
+    public synchronized String[] receiveAmount(ByteString pubKeyString, ByteString signature, long nonce, long timestamp)
+            throws AccountDoesNotExistsException, NonceAlreadyUsedException, TimestampExpiredException,
+            SignatureNotValidException, NoSuchAlgorithmException, InvalidKeySpecException, UnrecoverableKeyException,
+            CertificateException, KeyStoreException, IOException, SignatureException, InvalidKeyException {
         PublicKey pubKey = keyToBytes(pubKeyString);
 
         if (!(users.containsKey(pubKey)))
@@ -138,7 +148,8 @@ public class Server implements Serializable {
         return createResponse(transferredAmount, nonce, timestamp);
     }
 
-    public synchronized String[] audit(ByteString pubKeyString) throws AccountDoesNotExistsException {
+    public synchronized String[] audit(ByteString pubKeyString) throws AccountDoesNotExistsException,
+            NoSuchAlgorithmException, InvalidKeySpecException, UnrecoverableKeyException, CertificateException, KeyStoreException, IOException, SignatureException, InvalidKeyException {
         PublicKey pubKey = keyToBytes(pubKeyString);
 
         if (!(users.containsKey(pubKey)))
@@ -150,7 +161,8 @@ public class Server implements Serializable {
             return new String[]{"No transfers waiting to be accepted",
                         new String(encrypt("No transfers waiting to be accepted"), StandardCharsets.ISO_8859_1)};
 
-        return new String[]{getTransfersAsString(totalTransfers), new String(encrypt(getTransfersAsString(totalTransfers)), StandardCharsets.ISO_8859_1)};
+        return new String[]{getTransfersAsString(totalTransfers),
+                new String(encrypt(getTransfersAsString(totalTransfers)), StandardCharsets.ISO_8859_1)};
     }
 
     // ------------------------------------ AUX -------------------------------------
@@ -183,18 +195,10 @@ public class Server implements Serializable {
         return pendingTransfers.stream().map(Transfer::toString).collect(Collectors.joining());
     }
 
-    private PublicKey keyToBytes(ByteString pubKey) {
+    private PublicKey keyToBytes(ByteString pubKey) throws NoSuchAlgorithmException, InvalidKeySpecException {
         byte[] pubKeyBytes = new byte[294];
         pubKey.copyTo(pubKeyBytes, 0);
-
-        PublicKey publicKey = null;
-
-        try {
-            publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(pubKeyBytes));
-        } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        }
-        return publicKey;
+        return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(pubKeyBytes));
     }
 
     private void validateNonce(PublicKey publicKey, long nonce, long timestamp)
@@ -202,44 +206,31 @@ public class Server implements Serializable {
         users.get(publicKey).getNonceManager().validateNonce(nonce, timestamp);
     }
 
-    private boolean validateMessage(PublicKey pubKey, String message, byte[] signature)
-    {
-        boolean verified = false;
-        try{
-            Signature sign = Signature.getInstance("SHA256withRSA");
-            sign.initVerify(pubKey);
-            sign.update(message.getBytes(StandardCharsets.ISO_8859_1));
-            verified = sign.verify(signature);
-        } catch(Exception e){
-            e.printStackTrace();
-        }
-        return verified;
+    private boolean validateMessage(PublicKey pubKey, String message, byte[] signature) throws NoSuchAlgorithmException,
+        InvalidKeyException, SignatureException {
+
+        Signature sign = Signature.getInstance("SHA256withRSA");
+        sign.initVerify(pubKey);
+        sign.update(message.getBytes(StandardCharsets.ISO_8859_1));
+        return sign.verify(signature);
     }
 
-    private byte[] encrypt(String message){
-        byte[] signature = null;
-        try{
-            KeyStore ks = KeyStore.getInstance("JCEKS");
-            ks.load(new FileInputStream(SERVER_PATH + SERVER_PASS + ".jks"), SERVER_PASS.toCharArray());
+    private byte[] encrypt(String message) throws KeyStoreException, IOException, UnrecoverableKeyException, NoSuchAlgorithmException, CertificateException, InvalidKeyException, SignatureException {
+        KeyStore ks = KeyStore.getInstance("JCEKS");
+        ks.load(new FileInputStream(SERVER_PATH + SERVER_PASS + ".jks"), SERVER_PASS.toCharArray());
 
-            PrivateKey privKey = (PrivateKey) ks.getKey(SERVER_PASS, SERVER_PASS.toCharArray());
+        PrivateKey privKey = (PrivateKey) ks.getKey(SERVER_PASS, SERVER_PASS.toCharArray());
 
-            // SIGNATURE
-            Signature sign = Signature.getInstance("SHA256withRSA");
-            sign.initSign(privKey);
+        // SIGNATURE
+        Signature sign = Signature.getInstance("SHA256withRSA");
+        sign.initSign(privKey);
 
-            sign.update(message.getBytes(StandardCharsets.ISO_8859_1));
-            signature = sign.sign();
-
-            
-        } catch(Exception e){
-            e.printStackTrace();
-            System.out.println(("Error in encryption"));
-        }
-        return signature;
+        sign.update(message.getBytes(StandardCharsets.ISO_8859_1));
+        return sign.sign();
     }
 
-    private String[] createResponse(String message, long nonce, long timestamp) {
+    private String[] createResponse(String message, long nonce, long timestamp) throws UnrecoverableKeyException,
+            CertificateException, KeyStoreException, IOException, NoSuchAlgorithmException, SignatureException, InvalidKeyException {
         long newTimestamp = System.currentTimeMillis() / 1000;
         String m = message + String.valueOf(nonce + 1) + timestamp + newTimestamp;
         byte[] signServer = encrypt(m);
@@ -249,14 +240,19 @@ public class Server implements Serializable {
     }
 
     public void loadState() {
-        if (!DATA_PATH.toFile().exists()) {
+        /*if (!DATA_PATH.toFile().exists()) {
                 //Files.createFile(DATA_PATH);
+            try {
                 saveState();
-                return;
-        }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return;
+        }*/
 
         try (FileInputStream fis = new FileInputStream(DATA_PATH.toString()); ObjectInputStream ois = new ObjectInputStream(fis)) {
             users = (LinkedHashMap<PublicKey, User>) ois.readObject();
+            System.out.println(users);
         } catch (FileNotFoundException fnfe) {
             try {
                 Files.createDirectories(DATA_PATH.getParent());
@@ -269,18 +265,14 @@ public class Server implements Serializable {
         }
     }
 
-    private void saveState() {
-        try {
-            byte[] userBytes = mapToBytes();
+    private void saveState() throws IOException {
+        byte[] userBytes = mapToBytes();
 
-            Path tmp_path = Paths.get(System.getProperty("user.dir"), "storage");
-            Path tmpPathFile = File.createTempFile("atomic", "tmp", new File(tmp_path.toString())).toPath();
-            Files.write(tmpPathFile, userBytes, StandardOpenOption.APPEND);
+        Path tmpPath = Paths.get(System.getProperty("user.dir"), "storage");
+        Path tmpPathFile = File.createTempFile("atomic", "tmp", new File(tmpPath.toString())).toPath();
+        Files.write(tmpPathFile, userBytes, StandardOpenOption.APPEND);
 
-            Files.move(tmp_path, Paths.get(System.getProperty("user.dir"), "storage", "dataa.txt"), StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException io) {
-            io.printStackTrace();
-        }
+        Files.move(tmpPathFile, DATA_PATH, StandardCopyOption.ATOMIC_MOVE);
     }
 
     private byte[] mapToBytes() throws IOException {

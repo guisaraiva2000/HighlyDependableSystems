@@ -7,9 +7,11 @@ import pt.tecnico.bank.server.domain.exception.*;
 import pt.tecnico.bank.server.grpc.Server.*;
 import pt.tecnico.bank.server.grpc.ServerServiceGrpc;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.security.cert.CertificateException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.Objects;
 
 import static io.grpc.Status.*;
@@ -21,7 +23,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
 
     public ServerServiceImpl() {
         this.server = new Server();
-        //this.server.loadState();
+        this.server.loadState();
     }
 
     @Override
@@ -56,13 +58,12 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             responseObserver.onNext(response);
             responseObserver.onCompleted();
 
-            //TODO catches
         } catch (AccountAlreadyExistsException e) {
             responseObserver.onError(ALREADY_EXISTS.withDescription(e.getMessage()).asRuntimeException());
-        } catch (FileNotFoundException e) {
-            responseObserver.onError(ALREADY_EXISTS.withDescription("DATA FILE NOT FOUND").asRuntimeException());
-        } catch (IOException e) {
-            responseObserver.onError(ALREADY_EXISTS.withDescription("SOMETHING WENT WRONG").asRuntimeException());
+        } catch (InvalidKeySpecException | IOException | NoSuchAlgorithmException | UnrecoverableKeyException |
+                CertificateException | KeyStoreException | SignatureException | InvalidKeyException e) {
+            e.printStackTrace();
+            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException());
         }
     }
 
@@ -96,9 +97,11 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
         } catch (TimestampExpiredException e) {
             responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
-        } catch (SignatureNotValidException e) {
-            responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
-        } 
+        } catch (InvalidKeySpecException | IOException | NoSuchAlgorithmException | UnrecoverableKeyException |
+                CertificateException | KeyStoreException | SignatureException | InvalidKeyException | SignatureNotValidException e) {
+            e.printStackTrace();
+            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException());
+        }
     }
 
     @Override
@@ -117,6 +120,10 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             responseObserver.onCompleted();
         } catch (AccountDoesNotExistsException e) {
             responseObserver.onError(UNAVAILABLE.withDescription(e.getMessage()).asRuntimeException());
+        } catch (InvalidKeySpecException | NoSuchAlgorithmException | UnrecoverableKeyException | CertificateException |
+                KeyStoreException | IOException | SignatureException | InvalidKeyException e) {
+            e.printStackTrace();
+            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException());
         }
     }
 
@@ -143,12 +150,14 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             responseObserver.onCompleted();
         } catch (AccountDoesNotExistsException e) {
             responseObserver.onError(UNAVAILABLE.withDescription(e.getMessage()).asRuntimeException());
-        } catch (SignatureNotValidException e) {
-            responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
         } catch (NonceAlreadyUsedException e) {
             responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
         } catch (TimestampExpiredException e) {
             responseObserver.onError(FAILED_PRECONDITION.withDescription(e.getMessage()).asRuntimeException());
+        } catch (SignatureNotValidException | InvalidKeySpecException | NoSuchAlgorithmException | UnrecoverableKeyException |
+                CertificateException | KeyStoreException | IOException | SignatureException | InvalidKeyException e) {
+            e.printStackTrace();
+            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException());
         }
     }
 
@@ -165,6 +174,10 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             responseObserver.onCompleted();
         } catch (AccountDoesNotExistsException e) {
             responseObserver.onError(UNAVAILABLE.withDescription(e.getMessage()).asRuntimeException());
+        } catch (InvalidKeySpecException | NoSuchAlgorithmException | UnrecoverableKeyException | CertificateException
+                | KeyStoreException | IOException | SignatureException | InvalidKeyException e) {
+            e.printStackTrace();
+            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException());
         }
     }
 

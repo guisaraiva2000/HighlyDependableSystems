@@ -28,18 +28,21 @@ public class OpenAccountIT {
 
     @Test
     public void OpenAccountOKTest() {
-        OpenAccountRequest req = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("12345")).build();
+        OpenAccountRequest req = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("openOK")).build();
         OpenAccountResponse res = frontend.openAccount(req);
         assertTrue(res.getAck());
     }
 
     @Test
     public void UserAlreadyExistsKOTest() {
-        OpenAccountRequest req = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("12345")).build();
+        OpenAccountRequest req1 = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("openNOK")).build();
+        frontend.openAccount(req1);
+
+        OpenAccountRequest req2 = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("openNOK")).build();
         assertEquals(
                 ALREADY_EXISTS.getCode(),
                 assertThrows(
-                        StatusRuntimeException.class, () -> frontend.openAccount(req))
+                        StatusRuntimeException.class, () -> frontend.openAccount(req2))
                         .getStatus()
                         .getCode());
     }
