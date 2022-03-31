@@ -12,6 +12,7 @@ import java.security.Key;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.cert.CertificateException;
+import java.io.File;
 
 public class Client {
 
@@ -22,18 +23,17 @@ public class Client {
     private final SecurityHandler securityHandler;
     private final int VALIDITY_INTERVAL = 60 * 10;
 
-
-    public Client(ServerFrontendServiceImpl frontend, String username){
+    public Client(ServerFrontendServiceImpl frontend, String username, String password){
         this.frontend = frontend;
-        this.securityHandler = new SecurityHandler(username);
+        this.securityHandler = new SecurityHandler(username, password);
     }
 
-    public String open_account(String accountName, String password){
+    public String open_account(String accountName){
         try {
-            Key pubKey = securityHandler.getKey(accountName, password);
+            Key pubKey = securityHandler.getKey(accountName);
             byte[] encoded = pubKey.getEncoded();
 
-            byte[] signature = securityHandler.encrypt(accountName, pubKey.toString(), password);
+            byte[] signature = securityHandler.encrypt(accountName, pubKey.toString());
 
             OpenAccountRequest req = OpenAccountRequest.newBuilder()
                     .setPublicKey(ByteString.copyFrom(encoded))
@@ -54,7 +54,7 @@ public class Client {
             if(!securityHandler.validateResponse(securityHandler.getPublicKey("server"), message, newSignature))
                 return mimWarn();
 
-        } catch (StatusRuntimeException e) {
+        } catch (StatusRuntimeException || AccountAlreadyExistsException e) {
             handleError(e);
         } catch (Exception e){
            return e.getMessage();
@@ -62,7 +62,7 @@ public class Client {
         return ANSI_GREEN + "Account with name " + accountName + " created";
     }
 
-    public String send_amount(String senderAccount, String receiverAccount, int amount, String password){
+    public String send_amount(String senderAccount, String receiverAccount, int amount){
         try {
             long nonce = new SecureRandom().nextLong();
             long timestamp = System.currentTimeMillis() / 1000;
@@ -72,7 +72,7 @@ public class Client {
 
             String message = origKey.toString() + destKey.toString() + amount + nonce + timestamp;
 
-            byte[] signature = securityHandler.encrypt(senderAccount, message, password);
+            byte[] signature = securityHandler.encrypt(senderAccount, message);
 
             // send encrypted message instead of clear message
             SendAmountRequest req = SendAmountRequest.newBuilder().setSourceKey(ByteString.copyFrom(origKey.getEncoded()))
@@ -98,7 +98,7 @@ public class Client {
                     ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce))
                 return mimWarn();
 
-        } catch (StatusRuntimeException e) {
+        } catch (StatusRuntimeException || AccountDoesNotExistsException e) {
             return handleError(e);
         } catch (Exception e){
             return ANSI_RED + "Error while sending amount";
@@ -134,7 +134,7 @@ public class Client {
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
-        } catch (FileNotFoundException | CertificateException e) {
+        } catch (FileNotFoundException | CertificateException || AccountDoesNotExistsException e) {
             return e.getMessage();
         }
         return ANSI_GREEN + "Account Status:\n\t" +
@@ -143,7 +143,7 @@ public class Client {
                 "\n\t- Pending transfers:" + transfers.replaceAll("-", "\n\t\t-");
     }
 
-    public String receive_amount(String accountName, String password){
+    public String receive_amount(String accountName){
         int recvAmount;
         try {
             long nonce = new SecureRandom().nextLong();
@@ -153,7 +153,7 @@ public class Client {
 
             String message = key.toString() + nonce + timestamp;
 
-            byte[] signature = securityHandler.encrypt(accountName, message, password);
+            byte[] signature = securityHandler.encrypt(accountName, message);
 
             ReceiveAmountRequest req = ReceiveAmountRequest.newBuilder()
                     .setPublicKey(ByteString.copyFrom(key.getEncoded()))
@@ -179,7 +179,7 @@ public class Client {
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
-        } catch (FileNotFoundException | CertificateException e) {
+        } catch (FileNotFoundException | CertificateException || AccountDoesNotExistsException e) {
             return e.getMessage();
         }
         return ANSI_GREEN + "Amount deposited to your account: " + recvAmount;
@@ -209,7 +209,7 @@ public class Client {
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
-        } catch (FileNotFoundException | CertificateException e) {
+        } catch (FileNotFoundException | CertificateException|| AccountDoesNotExistsException e) {
             return e.getMessage();
         }
         return ANSI_GREEN + "Total transfers:" + transfers.replaceAll("-", "\n\t-");

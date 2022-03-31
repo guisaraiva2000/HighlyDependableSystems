@@ -1,4 +1,4 @@
-package pt.tecnico.bank.server.domain.exception;
+package pt.tecnico.bank.client.exceptions;
 
 public class AccountAlreadyExistsException extends Exception {
 

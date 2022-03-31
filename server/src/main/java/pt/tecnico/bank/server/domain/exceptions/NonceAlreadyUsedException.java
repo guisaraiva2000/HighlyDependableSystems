@@ -1,4 +1,4 @@
-package pt.tecnico.bank.server.domain.exception;
+package pt.tecnico.bank.server.domain.exceptions;
 
 public class NonceAlreadyUsedException extends Exception {
     private static final long serialVersionUID = 202104021434L;

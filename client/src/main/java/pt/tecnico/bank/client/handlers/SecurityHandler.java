@@ -1,5 +1,7 @@
 package pt.tecnico.bank.client.handlers;
 
+import pt.tecnico.bank.client.exceptions.*;
+
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.BasicConstraints;
@@ -22,17 +24,25 @@ import java.util.Date;
 public class SecurityHandler {
 
     private final String username;
-    private final String CERT_PATH = System.getProperty("user.dir") + "\\CERTIFICATES\\";
+    private final String password;
     private final String client_path;
+    private final String CERT_PATH = System.getProperty("user.dir") + "\\CERTIFICATES\\";
 
-    public SecurityHandler(String username) {
+    public SecurityHandler(String username, String password) {
         this.username = username;
+        this.password = password;
         this.client_path = System.getProperty("user.dir") + "\\CLIENTS\\" + username + "\\";;
     }
 
-    public byte[] encrypt(String alias, String message, String password){
+    public byte[] encrypt(String alias, String message){
         byte[] signature = null;
         try{
+
+            File file = new File(CERT_PATH + alias + ".cert");
+            
+            if(file.exists())
+                throw new AccountAlreadyExistsException();
+
             KeyStore ks = KeyStore.getInstance("JCEKS");
             ks.load(new FileInputStream(client_path + username +".jks"), password.toCharArray());
 
@@ -55,7 +65,7 @@ public class SecurityHandler {
         return signature;
     }
 
-    public Key getKey(String accountName, String password) throws NoSuchAlgorithmException, KeyStoreException, IOException, CertificateException {
+    public Key getKey(String accountName) throws NoSuchAlgorithmException, KeyStoreException, IOException, CertificateException {
         KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
         rsaKeyGen.initialize(2048);
 
@@ -132,7 +142,10 @@ public class SecurityHandler {
         return certificate;
     }
 
-    public PublicKey getPublicKey(String alias) throws CertificateException, FileNotFoundException {
+    public PublicKey getPublicKey(String alias) throws CertificateException, FileNotFoundException, AccountDoesNotExistsException {
+        File file = new File(CERT_PATH + alias + ".cert");
+        if(!file.exists())
+            throw new AccountDoesNotExistsException();
         CertificateFactory fac = CertificateFactory.getInstance("X509");
         FileInputStream in = new FileInputStream(CERT_PATH + alias + ".cert");
         X509Certificate cert = (X509Certificate) fac.generateCertificate(in);
@@ -152,4 +165,5 @@ public class SecurityHandler {
         }
         return verified;
     }
+
 }

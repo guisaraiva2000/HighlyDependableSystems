@@ -1,7 +1,8 @@
 package pt.tecnico.bank.server.domain;
 
 import com.google.protobuf.ByteString;
-import pt.tecnico.bank.server.domain.exception.*;
+
+import pt.tecnico.bank.server.domain.exceptions.*;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;

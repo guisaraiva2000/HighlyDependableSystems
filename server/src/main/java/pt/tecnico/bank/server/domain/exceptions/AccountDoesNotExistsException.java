@@ -1,4 +1,4 @@
-package pt.tecnico.bank.server.domain.exception;
+package pt.tecnico.bank.server.domain.exceptions;
 
 public class AccountDoesNotExistsException extends Exception {
 

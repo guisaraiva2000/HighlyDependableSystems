@@ -1,10 +1,10 @@
 package pt.tecnico.bank.server.domain;
 
-import pt.tecnico.bank.server.domain.exception.NonceAlreadyUsedException;
-import pt.tecnico.bank.server.domain.exception.TimestampExpiredException;
-
 import java.io.Serializable;
 import java.util.*;
+
+import pt.tecnico.bank.server.domain.exceptions.NonceAlreadyUsedException;
+import pt.tecnico.bank.server.domain.exceptions.TimestampExpiredException;
 
 public class NonceManager implements Serializable {
 

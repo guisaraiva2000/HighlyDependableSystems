@@ -3,7 +3,7 @@ package pt.tecnico.bank.server;
 import com.google.protobuf.ByteString;
 import io.grpc.stub.StreamObserver;
 import pt.tecnico.bank.server.domain.Server;
-import pt.tecnico.bank.server.domain.exception.*;
+import pt.tecnico.bank.server.domain.exceptions.*;
 import pt.tecnico.bank.server.grpc.Server.*;
 import pt.tecnico.bank.server.grpc.ServerServiceGrpc;
 
