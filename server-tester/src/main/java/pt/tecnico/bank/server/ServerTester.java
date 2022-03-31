@@ -19,7 +19,7 @@ public class ServerTester {
 			System.err.println("ERROR: " + sre.getMessage());
 		}
 
-		frontend.close();
+		frontend.getService().close();
 
 	}
 	

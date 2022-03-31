@@ -47,7 +47,6 @@ public class Server implements Serializable {
         return new String[]{"true", pubKeyBytes.toString() , new String(encrypt(message), StandardCharsets.ISO_8859_1)};
     }
 
-    //TODO fix negative balance
     public synchronized String[] sendAmount(ByteString sourceKeyString, ByteString destinationKeyString, int amount, long nonce, long timestamp, ByteString signature)
             throws AccountDoesNotExistsException, SameAccountException, NotEnoughBalanceException, NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException {
         PublicKey sourceKey = keyToBytes(sourceKeyString);

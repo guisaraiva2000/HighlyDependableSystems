@@ -1,20 +1,18 @@
 package pt.tecnico.bank.server;
 
+import com.google.protobuf.ByteString;
 import io.grpc.stub.StreamObserver;
 import pt.tecnico.bank.server.domain.Server;
 import pt.tecnico.bank.server.domain.exception.*;
 import pt.tecnico.bank.server.grpc.Server.*;
 import pt.tecnico.bank.server.grpc.ServerServiceGrpc;
 
-import static io.grpc.Status.*;
-
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import com.google.protobuf.ByteString;
+import static io.grpc.Status.*;
 
 
 public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
@@ -78,13 +76,6 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             long recvTimestamp = Long.parseLong(r[2]);
             long newTimestamp = Long.parseLong(r[3]);
             byte[] signature = r[4].getBytes(StandardCharsets.ISO_8859_1);
-
-
-            try(FileOutputStream fos = new FileOutputStream(System.getProperty("user.dir") + "\\m.txt")){
-                fos.write(signature);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
 
             SendAmountResponse response = SendAmountResponse.newBuilder()
                                                             .setAck(ack)

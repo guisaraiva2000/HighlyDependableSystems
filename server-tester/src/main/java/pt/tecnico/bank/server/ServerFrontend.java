@@ -1,128 +1,89 @@
 package pt.tecnico.bank.server;
 
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import pt.tecnico.bank.server.domain.FrontendService;
 import pt.tecnico.bank.server.grpc.Server.*;
-import pt.tecnico.bank.server.grpc.ServerServiceGrpc;
-
-import java.io.Closeable;
-import java.util.concurrent.TimeUnit;
 
 
-public class ServerFrontend implements Closeable {
+public class ServerFrontend {
 
-    private final ManagedChannel channel;
-    private final ServerServiceGrpc.ServerServiceBlockingStub stub;
+    private final FrontendService service;
 
     /**
      * Creates a frontend that contacts the only replica.
      */
     public ServerFrontend() {
-        this.channel = ManagedChannelBuilder.forAddress("localhost", 8080)
-                                            .usePlaintext()
-                                            .build();
-        this.stub = ServerServiceGrpc.newBlockingStub(this.channel);
+        this.service = new FrontendService();
+    }
+
+    public FrontendService getService() {
+        return service;
     }
 
     /* ---------- Services ---------- */
 
     public PingResponse ping(PingRequest request) {
-        return stub.ping(PingRequest.newBuilder().setInput(request.getInput()).build());
+        try {
+            return this.service.getPingResponse(request);
+        } catch (StatusRuntimeException sre) {
+            exceptionHandler(sre);
+            return this.service.getPingResponse(request);
+        }
     }
 
     public OpenAccountResponse openAccount(OpenAccountRequest request) {
         try {
-            return stub.withDeadlineAfter(1, TimeUnit.SECONDS).openAccount(OpenAccountRequest.newBuilder()
-                    .setPublicKey(request.getPublicKey())
-                    .setBalance(request.getBalance()).build());
+            return this.service.getOpenAccountResponse(request);
         } catch (StatusRuntimeException sre) {
-            if (sre.getStatus().getCode() != Status.DEADLINE_EXCEEDED.getCode())
-                throw sre;
-            System.out.println("Request dropped.");
-            System.out.println("Resending...");
-            return stub.withDeadlineAfter(1, TimeUnit.SECONDS).openAccount(OpenAccountRequest.newBuilder()
-                    .setPublicKey(request.getPublicKey())
-                    .setBalance(request.getBalance()).build());
+            exceptionHandler(sre);
+            return this.service.getOpenAccountResponse(request);
         }
     }
 
     public SendAmountResponse sendAmount(SendAmountRequest request) {
         try {
-            return stub.sendAmount(SendAmountRequest.newBuilder()
-                    .setAmount(request.getAmount())
-                    .setSourceKey(request.getSourceKey())
-                    .setDestinationKey(request.getDestinationKey())
-                    .setSignature(request.getSignature())
-                    .setNonce(request.getNonce())
-                    .setTimestamp(request.getTimestamp())
-                    .build());
+            return this.service.getSendAmountResponse(request);
         } catch (StatusRuntimeException sre) {
-            if (sre.getStatus().getCode() != Status.DEADLINE_EXCEEDED.getCode())
-                throw sre;
-            System.out.println("Request dropped.");
-            System.out.println("Resending...");
-            return stub.sendAmount(SendAmountRequest.newBuilder()
-                    .setAmount(request.getAmount())
-                    .setSourceKey(request.getSourceKey())
-                    .setDestinationKey(request.getDestinationKey())
-                    .setSignature(request.getSignature())
-                    .setNonce(request.getNonce())
-                    .setTimestamp(request.getTimestamp())
-                    .build());
+            exceptionHandler(sre);
+            return this.service.getSendAmountResponse(request);
         }
     }
 
     public CheckAccountResponse checkAccount(CheckAccountRequest request) {
         try {
-            return stub.checkAccount(CheckAccountRequest.newBuilder().setPublicKey(request.getPublicKey()).build());
+            return this.service.getCheckAccountResponse(request);
         } catch (StatusRuntimeException sre) {
-            if (sre.getStatus().getCode() != Status.DEADLINE_EXCEEDED.getCode())
-                throw sre;
-            System.out.println("Request dropped.");
-            System.out.println("Resending...");
-            return stub.checkAccount(CheckAccountRequest.newBuilder().setPublicKey(request.getPublicKey()).build());
+            exceptionHandler(sre);
+            return this.service.getCheckAccountResponse(request);
         }
     }
 
     public ReceiveAmountResponse receiveAmount(ReceiveAmountRequest request) {
         try {
-            return stub.receiveAmount(ReceiveAmountRequest.newBuilder()
-                    .setPublicKey(request.getPublicKey())
-                    .setSignature(request.getSignature())
-                    .setNonce(request.getNonce())
-                    .setTimestamp(request.getTimestamp())
-                    .build());
+            return this.service.getReceiveAmountResponse(request);
         } catch (StatusRuntimeException sre) {
-            if (sre.getStatus().getCode() != Status.DEADLINE_EXCEEDED.getCode())
-                throw sre;
-            System.out.println("Request dropped.");
-            System.out.println("Resending...");
-            return stub.receiveAmount(ReceiveAmountRequest.newBuilder()
-                    .setPublicKey(request.getPublicKey())
-                    .setSignature(request.getSignature())
-                    .setNonce(request.getNonce())
-                    .setTimestamp(request.getTimestamp())
-                    .build());
+            exceptionHandler(sre);
+            return this.service.getReceiveAmountResponse(request);
         }
     }
 
     public AuditResponse auditResponse(AuditRequest request) {
         try {
-            return stub.audit(AuditRequest.newBuilder().setPublicKey(request.getPublicKey()).build());
+            return this.service.getAuditResponse(request);
         } catch (StatusRuntimeException sre) {
-            if (sre.getStatus().getCode() != Status.DEADLINE_EXCEEDED.getCode())
-                throw sre;
-            System.out.println("Request dropped.");
-            System.out.println("Resending...");
-            return stub.audit(AuditRequest.newBuilder().setPublicKey(request.getPublicKey()).build());
+            exceptionHandler(sre);
+            return this.service.getAuditResponse(request);
         }
     }
 
-    @Override
-    public final void close() {
-        channel.shutdown();
+
+    // aux
+    private void exceptionHandler(StatusRuntimeException sre) {
+        if (sre.getStatus().getCode() != Status.DEADLINE_EXCEEDED.getCode())
+            throw sre;
+        System.out.println("Request dropped.");
+        System.out.println("Resending...");
     }
 
 }

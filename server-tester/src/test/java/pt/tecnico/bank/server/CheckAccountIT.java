@@ -21,7 +21,7 @@ public class CheckAccountIT {
 
     @AfterEach
     public void tearDown() {
-        frontend.close();
+        frontend.getService().close();
         frontend = null;
     }
 

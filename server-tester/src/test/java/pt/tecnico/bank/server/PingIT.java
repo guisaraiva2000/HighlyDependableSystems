@@ -20,7 +20,7 @@ public class PingIT {
 
     @AfterEach
     public void tearDown() {
-        frontend.close();
+        frontend.getService().close();
         frontend = null;
     }
 

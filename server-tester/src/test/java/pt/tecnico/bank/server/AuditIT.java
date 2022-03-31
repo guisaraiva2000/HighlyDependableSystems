@@ -20,7 +20,7 @@ public class AuditIT {
 
     @AfterEach
     public void tearDown() {
-        frontend.close();
+        frontend.getService().close();
         frontend = null;
     }
 

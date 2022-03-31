@@ -22,7 +22,7 @@ public class OpenAccountIT {
 
     @AfterEach
     public void tearDown() {
-        frontend.close();
+        frontend.getService().close();
         frontend = null;
     }
 

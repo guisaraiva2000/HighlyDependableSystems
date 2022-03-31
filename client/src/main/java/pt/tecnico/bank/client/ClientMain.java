@@ -6,12 +6,14 @@ import pt.tecnico.bank.server.ServerFrontend;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.io.IOException;
 import java.util.Scanner;
 
 public class ClientMain {
 
     private final static String USER_PATH = System.getProperty("user.dir") + "\\CLIENTS\\users.txt";
     private static String username = "";
+    private static String password = "";
     public static void main(String[] args) {
 
         System.out.println(ClientMain.class.getSimpleName());
@@ -33,29 +35,15 @@ public class ClientMain {
         boolean loggedIn = false;
 
         try {
-            while(!loggedIn){
+            while(true){
                 System.out.println("Login to use bank application or press ENTER to leave.");
                 System.out.print("Username: ");
                 System.out.flush();
                 input = sin.nextLine();
 
-                String password = "";
+                if (input.equals("")) break;
 
-                BufferedReader reader = new BufferedReader(new FileReader(USER_PATH));
-                String line = reader.readLine();
-                while (line != null) {
-                    String[] data = line.split(":");
-                    if(data[0].equals(input)){
-                        username = data[0];
-                        password = data[1];
-                        break;
-                    }
-                    line = reader.readLine();
-                }
-                reader.close();
-
-                if(username.equals(""))
-                    break;
+                readUserData(input);
 
                 System.out.print("Password: ");
                 System.out.flush();
@@ -79,26 +67,15 @@ public class ClientMain {
                     switch (tokens[0]) {
                         case "open":
                             if (tokens.length == 4) {
-                                try {
-                                    client.open_account(tokens[1], Integer.parseInt(tokens[2]), tokens[3]);
-                                } catch(Exception e){
-                                    e.printStackTrace();
-                                }
+                                client.open_account(tokens[1], Integer.parseInt(tokens[2]), tokens[3]);
                             } else {
                                 System.err.println("ERROR: Usage: open %accountName% %amount% %password%");
                             }
                             break;
                         case "send":
                             if (tokens.length == 5) {
-                               /* try (FileOutputStream out = new FileOutputStream("test_client_send.txt")) {
-                                    out.write(tokens[1].getBytes());
-                                } catch (IOException e) {
-                                    e.printStackTrace();
-                                }*/
-
                                 client.send_amount(tokens[1], tokens[2],
-                                        Integer.parseInt(tokens[3]),
-                                        tokens[4]);
+                                        Integer.parseInt(tokens[3]), tokens[4]);
                             } else {
                                 System.err.println("ERROR: Usage: send %sender_account% %receiver_account% %amount% %password%");
                             }
@@ -140,40 +117,23 @@ public class ClientMain {
         } catch (Exception e){
             e.printStackTrace();
         } finally {
-            frontend.close();
+            frontend.getService().close();
             System.exit(0);
         }
     }
 
-    public static void openAccount(String accountName, int amount, String password){
-       /* try {
-            client.open_account(accountName, amount, password);
-        } catch(Exception e){
-            e.printStackTrace();
-        }*/
-    }
-
-    public static void sendAmount(){
-
-    }
-
-    public static void checkAccount(){
-
-    }
-
-    public static void receiveTransfers(){
-
-    }
-
-    public static void audit(){
-
-    }
-
-    public void logout(){
-
-    }
-
-    public static String getUsername(){
-        return username;
+    private static void readUserData(String input) throws IOException {
+        BufferedReader reader = new BufferedReader(new FileReader(USER_PATH));
+        String line = reader.readLine();
+        while (line != null) {
+            String[] data = line.split(":");
+            if(data[0].equals(input)){
+                username = data[0];
+                password = data[1];
+                break;
+            }
+            line = reader.readLine();
+        }
+        reader.close();
     }
 }
