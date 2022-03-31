@@ -21,7 +21,6 @@ import java.util.stream.Collectors;
 public class Server implements Serializable {
 
     private final String SERVER_PATH = System.getProperty("user.dir") + "\\KEYS\\";
-    //private final String DATA_PATH = System.getProperty("user.dir") + "\\storage" + "\\data.txt";
     private final Path DATA_PATH = Paths.get(System.getProperty("user.dir"), "storage", "data.txt");
     private final String SERVER_PASS = "server";
 
@@ -41,10 +40,9 @@ public class Server implements Serializable {
         User newUser = new User(pubKeyBytes, balance);
         users.put(pubKeyBytes, newUser);
 
-        saveState();
-
         String message = "true" + pubKeyBytes.toString();
 
+        saveState();
         return new String[]{"true", pubKeyBytes.toString() , new String(encrypt(message), StandardCharsets.ISO_8859_1)};
     }
 
@@ -83,6 +81,7 @@ public class Server implements Serializable {
         addPendingAmount(-amount, sourceKey);
         addPendingTransfer(amount, sourceKey, destinationKey);  // add to dest pending list
 
+        saveState();
         return createResponse("true", nonce, timestamp);
     }
 
@@ -145,6 +144,8 @@ public class Server implements Serializable {
         users.put(pubKey, user); // update user
 
         String transferredAmount = String.valueOf(user.getBalance() - oldBalance);
+
+        saveState();
         return createResponse(transferredAmount, nonce, timestamp);
     }
 
@@ -240,19 +241,8 @@ public class Server implements Serializable {
     }
 
     public void loadState() {
-        /*if (!DATA_PATH.toFile().exists()) {
-                //Files.createFile(DATA_PATH);
-            try {
-                saveState();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            return;
-        }*/
-
         try (FileInputStream fis = new FileInputStream(DATA_PATH.toString()); ObjectInputStream ois = new ObjectInputStream(fis)) {
             users = (LinkedHashMap<PublicKey, User>) ois.readObject();
-            System.out.println(users);
         } catch (FileNotFoundException fnfe) {
             try {
                 Files.createDirectories(DATA_PATH.getParent());
@@ -260,6 +250,8 @@ public class Server implements Serializable {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        } catch (EOFException e) {
+            System.out.println("Warning: Database is empty");
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
         }
