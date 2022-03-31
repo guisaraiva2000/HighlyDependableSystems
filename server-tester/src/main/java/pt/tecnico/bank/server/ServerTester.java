@@ -9,7 +9,7 @@ public class ServerTester {
 	public static void main(String[] args) {
 		System.out.println(ServerTester.class.getSimpleName());
 
-		ServerFrontend frontend = new ServerFrontend();
+		ServerFrontendServiceImpl frontend = new ServerFrontendServiceImpl();
 
 		try {
 			PingRequest request = PingRequest.newBuilder().setInput("friend").build();

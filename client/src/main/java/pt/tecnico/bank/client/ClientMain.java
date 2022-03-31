@@ -1,8 +1,7 @@
 package pt.tecnico.bank.client;
 
-import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
-import pt.tecnico.bank.server.ServerFrontend;
+import pt.tecnico.bank.server.ServerFrontendServiceImpl;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -18,11 +17,11 @@ public class ClientMain {
 
         System.out.println(ClientMain.class.getSimpleName());
 
-        ServerFrontend frontend;
+        ServerFrontendServiceImpl frontend;
         Client client;
 
         try {
-            frontend = new ServerFrontend();
+            frontend = new ServerFrontendServiceImpl();
         } catch (Exception e) {
             System.out.println("Caught exception with description: " + e.getMessage());
             return;

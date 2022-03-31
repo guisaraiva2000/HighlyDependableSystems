@@ -1,22 +1,20 @@
 package pt.tecnico.bank.server;
 
 import com.google.protobuf.ByteString;
-import io.grpc.StatusRuntimeException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import pt.tecnico.bank.server.grpc.Server.*;
 
-import static io.grpc.Status.ALREADY_EXISTS;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class SendAmountIT {
 
-    private ServerFrontend frontend;
+    private ServerFrontendServiceImpl frontend;
 
     @BeforeEach
     public void setUp() {
-        frontend = new ServerFrontend();
+        frontend = new ServerFrontendServiceImpl();
     }
 
     @AfterEach

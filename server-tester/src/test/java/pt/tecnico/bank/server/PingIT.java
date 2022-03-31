@@ -11,11 +11,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class PingIT {
 
-    private ServerFrontend frontend;
+    private ServerFrontendServiceImpl frontend;
 
     @BeforeEach
     public void setUp() {
-        frontend = new ServerFrontend();
+        frontend = new ServerFrontendServiceImpl();
     }
 
     @AfterEach

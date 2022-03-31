@@ -3,7 +3,7 @@ package pt.tecnico.bank.client;
 import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
 import pt.tecnico.bank.client.handlers.SecurityHandler;
-import pt.tecnico.bank.server.ServerFrontend;
+import pt.tecnico.bank.server.ServerFrontendServiceImpl;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 import java.io.FileNotFoundException;
@@ -14,17 +14,16 @@ import java.security.cert.CertificateException;
 
 public class Client {
 
-    private final ServerFrontend frontend;
+    private final ServerFrontendServiceImpl frontend;
     private final SecurityHandler securityHandler;
 
 
-    public Client(ServerFrontend frontend, String username){
+    public Client(ServerFrontendServiceImpl frontend, String username){
         this.frontend = frontend;
         this.securityHandler = new SecurityHandler(username);
     }
 
     void open_account(String accountName, int amount, String password){
-
         try {
             Key pubKey = securityHandler.getKey(accountName, password);
             byte[] encoded = pubKey.getEncoded();

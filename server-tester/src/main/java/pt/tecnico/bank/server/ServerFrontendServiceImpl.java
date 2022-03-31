@@ -2,22 +2,22 @@ package pt.tecnico.bank.server;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import pt.tecnico.bank.server.domain.FrontendService;
+import pt.tecnico.bank.server.domain.ServerFrontend;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 
-public class ServerFrontend {
+public class ServerFrontendServiceImpl {
 
-    private final FrontendService service;
+    private final ServerFrontend service;
 
     /**
      * Creates a frontend that contacts the only replica.
      */
-    public ServerFrontend() {
-        this.service = new FrontendService();
+    public ServerFrontendServiceImpl() {
+        this.service = new ServerFrontend();
     }
 
-    public FrontendService getService() {
+    public ServerFrontend getService() {
         return service;
     }
 
@@ -51,12 +51,15 @@ public class ServerFrontend {
     }
 
     public CheckAccountResponse checkAccount(CheckAccountRequest request) {
-        try {
-            return this.service.getCheckAccountResponse(request);
-        } catch (StatusRuntimeException sre) {
-            exceptionHandler(sre);
-            return this.service.getCheckAccountResponse(request);
+        CheckAccountResponse res = null;
+        while (res == null) {
+            try {
+                res = this.service.getCheckAccountResponse(request);
+            } catch (StatusRuntimeException sre) {
+                exceptionHandler(sre);
+            }
         }
+        return res;
     }
 
     public ReceiveAmountResponse receiveAmount(ReceiveAmountRequest request) {
