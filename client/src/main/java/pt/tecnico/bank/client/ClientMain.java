@@ -23,11 +23,14 @@ public class ClientMain {
 
         try {
             frontend = new ServerFrontend();
-            // client = new Client(frontend);
         } catch (Exception e) {
             System.out.println("Caught exception with description: " + e.getMessage());
             return;
         }
+
+        String ANSI_YELLOW = "\u001B[33m";
+        String ANSI_RED = "\u001B[31m";
+        String PURPLE = "\033[0;35m";
 
         Scanner sin = new Scanner(System.in);
         String input;
@@ -36,7 +39,7 @@ public class ClientMain {
 
         try {
             while(true){
-                System.out.println("Login to use bank application or press ENTER to leave.");
+                System.out.println(PURPLE + "Login to use bank application or press ENTER to leave.");
                 System.out.print("Username: ");
                 System.out.flush();
                 input = sin.nextLine();
@@ -49,13 +52,15 @@ public class ClientMain {
                 System.out.flush();
                 input = sin.nextLine();
 
-                if(password.equals(input) && !input.equals(""))
+                if(password.equals(input) && !input.equals("")) {
                     loggedIn = true;
+                    displayCommands();
+                }
 
                 while(loggedIn){
                     client = new Client(frontend, username);
 
-                    System.out.print("> ");
+                    System.out.print(ANSI_YELLOW + "> ");
                     System.out.flush();
                     input = sin.nextLine();
 
@@ -69,7 +74,7 @@ public class ClientMain {
                             if (tokens.length == 4) {
                                 client.open_account(tokens[1], Integer.parseInt(tokens[2]), tokens[3]);
                             } else {
-                                System.err.println("ERROR: Usage: open %accountName% %amount% %password%");
+                                System.err.println(ANSI_RED + "ERROR: Usage: open %accountName% %amount% %password%");
                             }
                             break;
                         case "send":
@@ -77,28 +82,28 @@ public class ClientMain {
                                 client.send_amount(tokens[1], tokens[2],
                                         Integer.parseInt(tokens[3]), tokens[4]);
                             } else {
-                                System.err.println("ERROR: Usage: send %sender_account% %receiver_account% %amount% %password%");
+                                System.err.println(ANSI_RED + "ERROR: Usage: send %sender_account% %receiver_account% %amount% %password%");
                             }
                             break;
                         case "check":
                             if (tokens.length == 2) {
                                 client.check_account(tokens[1]);
                             } else {
-                                System.err.println("ERROR: Usage: check");
+                                System.err.println(ANSI_RED + "ERROR: Usage: check %account_name%");
                             }
                             break;
                         case "receive":
                             if (tokens.length == 3) {
                                 client.receive_amount(tokens[1], tokens[2]);
                             } else {
-                                System.err.println("ERROR: Usage: receive %account_name% %password%");
+                                System.err.println(ANSI_RED + "ERROR: Usage: receive %account_name% %password%");
                             }
                             break;
                         case "audit":
                             if (tokens.length == 2) {
                                 client.audit(tokens[1]);
                             } else {
-                                System.err.println("ERROR: Usage: audit");
+                                System.err.println(ANSI_RED + "ERROR: Usage: audit %account_name%");
                             }
                             break;
                         case "quit":
@@ -106,7 +111,7 @@ public class ClientMain {
                             username = "";
                             break;
                         default:
-                            System.err.println("ERROR: Command not recognized!");
+                            System.err.println(ANSI_RED + "ERROR: Command not recognized!");
                     }
                 }
             }
@@ -135,5 +140,16 @@ public class ClientMain {
             line = reader.readLine();
         }
         reader.close();
+    }
+
+    private static void displayCommands() {
+        String ANSI_CYAN = "\u001B[36m";
+        System.out.println(ANSI_CYAN + "|-------------------------- Bank Operations ------------------------|");
+        System.out.println(ANSI_CYAN + "| open    %accountName% %amount% %password%                         |");
+        System.out.println(ANSI_CYAN + "| send    %sender_account% %receiver_account% %amount% %password%   |");
+        System.out.println(ANSI_CYAN + "| check   %account_name%                                            |");
+        System.out.println(ANSI_CYAN + "| receive %account_name% %password%                                 |");
+        System.out.println(ANSI_CYAN + "| audit   %account_name%                                            |");
+        System.out.println(ANSI_CYAN + "|-------------------------------------------------------------------|");
     }
 }

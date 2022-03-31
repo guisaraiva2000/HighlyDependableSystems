@@ -45,10 +45,11 @@ public class Client {
 
             String message = ack + pubKey.toString();
 
-            if(securityHandler.validateResponse(securityHandler.getPublicKey("server"), message, signature))
-                System.out.println("Account with name " + accountName + " created");
-            else
-                System.out.println("WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
+            if(securityHandler.validateResponse(securityHandler.getPublicKey("server"), message, signature)) {
+                System.out.println("\033[0;32m" + "Account with name " + accountName + " created");
+            } else {
+                mimWarn();
+            }
 
         } catch (StatusRuntimeException e) {
             printError(e);
@@ -92,15 +93,15 @@ public class Client {
 
             if (securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
                     ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce) {
-                System.out.println("Sent " + amount + " from " + senderAccount + " to " + receiverAccount);
+                System.out.println("\033[0;32m" + "Sent " + amount + " from " + senderAccount + " to " + receiverAccount);
             } else {
-                System.out.println("WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
+                mimWarn();
             }
 
         } catch (StatusRuntimeException e) {
             printError(e);
         } catch (Exception e){
-            System.out.println("Error while sending amount");
+            System.out.println("\033[0;31m" + "Error while sending amount");
             e.printStackTrace();
         }
     }
@@ -121,12 +122,12 @@ public class Client {
             String newMessage = String.valueOf(balance) + pendentAmount + transfers;
 
             if(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature)) {
-                System.out.println("Account Status:\n\t" +
+                System.out.println("\033[0;32m" + "Account Status:\n\t" +
                         "- Balance: " + balance +
                         "\n\t- On hold amount to send: " + pendentAmount +
                         "\n\t- Pending transfers:" + transfers.replaceAll("-", "\n\t\t-"));
             } else {
-                System.out.println("WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
+                mimWarn();
             }
         } catch (StatusRuntimeException e) {
             printError(e);
@@ -165,10 +166,11 @@ public class Client {
             String newMessage = String.valueOf(recvAmount) + String.valueOf(newNonce) + timestamp + newTimestamp;
 
             if (securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
-                    recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce)
-                System.out.println("Amount deposited to your account: " + recvAmount);
-            else
-                System.out.println("WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
+                    recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce) {
+                System.out.println("\033[0;32m" + "Amount deposited to your account: " + recvAmount);
+            } else {
+                mimWarn();
+            }
 
         } catch (StatusRuntimeException e) {
             printError(e);
@@ -188,10 +190,11 @@ public class Client {
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature,0);
 
-            if(securityHandler.validateResponse(securityHandler.getPublicKey("server"), transfers, newSignature))
-                System.out.println("Total transfers:" + transfers.replaceAll("-", "\n\t-"));
-            else
-                System.out.println("WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
+            if(securityHandler.validateResponse(securityHandler.getPublicKey("server"), transfers, newSignature)) {
+                System.out.println("\033[0;32m" + "Total transfers:" + transfers.replaceAll("-", "\n\t-"));
+            } else {
+                mimWarn();
+            }
 
         } catch (StatusRuntimeException e) {
             printError(e);
@@ -202,9 +205,13 @@ public class Client {
 
     private void printError(StatusRuntimeException e) {
         if (e.getStatus().getDescription() != null && e.getStatus().getDescription().equals("io exception")) {
-            System.out.println("Warn: Server not responding!");
+            System.out.println("\033[0;31m" + "Warn: Server not responding!");
         } else {
-            System.out.println(e.getStatus().getDescription());
+            System.out.println("\033[0;31m" + e.getStatus().getDescription());
         }
+    }
+
+    private void mimWarn() {
+        System.out.println("\033[0;31m" + "WARNING! Invalid message from server. Someone might be intercepting your messages with the server.");
     }
 }
