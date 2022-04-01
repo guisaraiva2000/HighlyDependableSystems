@@ -1,6 +1,6 @@
 # T09-BFTB
 
-High Reliability Systems 2021-2022, 2nd semester project
+High Dependable Systems 2021-2022, 2nd semester project
 
 
 ## Authors
@@ -11,7 +11,7 @@ Maria Gomes 102203
 
 Guilherme Saraiva 93717
 
-Bruno Silva
+Bruno Silva 102172
 
 
 ### Prerequisites
@@ -50,6 +50,7 @@ To perform the bank operations, access the **_client_** folder and run:
 ```
 mvn exec:java
 ```
+Check Client's **_README.md_** for more information.
 
 ### Testing
 
