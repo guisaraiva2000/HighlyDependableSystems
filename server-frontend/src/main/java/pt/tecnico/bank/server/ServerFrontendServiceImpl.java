@@ -1,20 +1,20 @@
-package pt.tecnico.bank.tester;
+package pt.tecnico.bank.server;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import pt.tecnico.bank.tester.domain.ServerFrontend;
+import pt.tecnico.bank.server.domain.ServerFrontend;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 
 public class ServerFrontendServiceImpl {
 
-    private final ServerFrontend service;
+    private final pt.tecnico.bank.server.domain.ServerFrontend service;
 
     /**
      * Creates a frontend that contacts the only replica.
      */
     public ServerFrontendServiceImpl() {
-        this.service = new ServerFrontend();
+        this.service = new pt.tecnico.bank.server.domain.ServerFrontend();
     }
 
     public ServerFrontend getService() {

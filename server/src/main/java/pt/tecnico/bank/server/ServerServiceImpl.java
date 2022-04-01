@@ -64,19 +64,11 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
 
         } catch (AccountAlreadyExistsException e) {
             responseObserver.onError(ALREADY_EXISTS.withDescription(e.getMessage()).asRuntimeException());
-        } catch (InvalidKeySpecException | IOException | NoSuchAlgorithmException | UnrecoverableKeyException |
-                CertificateException | KeyStoreException | SignatureException | InvalidKeyException | IllegalBlockSizeException e) {
+        } catch (InvalidKeySpecException | IOException | NoSuchAlgorithmException | UnrecoverableKeyException
+                | CertificateException | KeyStoreException | SignatureException | InvalidKeyException
+                | IllegalBlockSizeException | BadPaddingException | NoSuchPaddingException | SignatureNotValidException e) {
             e.printStackTrace();
             responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException());
-        } catch (BadPaddingException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (NoSuchPaddingException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (SignatureNotValidException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
         }
     }
 

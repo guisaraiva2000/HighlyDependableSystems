@@ -1,16 +1,17 @@
 package pt.tecnico.bank.client;
 
 import com.google.protobuf.ByteString;
-
 import io.grpc.StatusRuntimeException;
+import org.bouncycastle.operator.OperatorCreationException;
+import pt.tecnico.bank.client.exceptions.AccountAlreadyExistsException;
+import pt.tecnico.bank.client.exceptions.AccountDoesNotExistsException;
 import pt.tecnico.bank.client.handlers.SecurityHandler;
-import pt.tecnico.bank.tester.ServerFrontendServiceImpl;
+import pt.tecnico.bank.server.ServerFrontendServiceImpl;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 import java.io.FileNotFoundException;
-import java.security.Key;
-import java.security.PublicKey;
-import java.security.SecureRandom;
+import java.io.IOException;
+import java.security.*;
 import java.security.cert.CertificateException;
 import java.io.File;
 
@@ -54,10 +55,12 @@ public class Client {
             if(!securityHandler.validateResponse(securityHandler.getPublicKey("server"), message, newSignature))
                 return mimWarn();
 
-        } catch (StatusRuntimeException || AccountAlreadyExistsException e) {
-            handleError(e);
-        } catch (Exception e){
-           return e.getMessage();
+        } catch (StatusRuntimeException e) {
+            return handleError(e);
+        } catch (CertificateException | NoSuchAlgorithmException | KeyStoreException | IOException
+                | AccountAlreadyExistsException | UnrecoverableKeyException | SignatureException | InvalidKeyException
+                | AccountDoesNotExistsException | OperatorCreationException e) {
+            return e.getMessage();
         }
         return ANSI_GREEN + "Account with name " + accountName + " created";
     }
@@ -98,10 +101,12 @@ public class Client {
                     ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce))
                 return mimWarn();
 
-        } catch (StatusRuntimeException || AccountDoesNotExistsException e) {
+        } catch (StatusRuntimeException  e) {
             return handleError(e);
-        } catch (Exception e){
-            return ANSI_RED + "Error while sending amount";
+        } catch (AccountDoesNotExistsException | CertificateException | SignatureException | NoSuchAlgorithmException
+                | InvalidKeyException | IOException | AccountAlreadyExistsException | KeyStoreException
+                | UnrecoverableKeyException e) {
+            return e.getMessage();
         }
         return ANSI_GREEN + "Sent " + amount + " from " + senderAccount + " to " + receiverAccount;
     }
@@ -134,7 +139,8 @@ public class Client {
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
-        } catch (FileNotFoundException | CertificateException || AccountDoesNotExistsException e) {
+        } catch (FileNotFoundException | CertificateException | AccountDoesNotExistsException | NoSuchAlgorithmException
+                | InvalidKeyException | SignatureException e) {
             return e.getMessage();
         }
         return ANSI_GREEN + "Account Status:\n\t" +
@@ -179,7 +185,9 @@ public class Client {
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
-        } catch (FileNotFoundException | CertificateException || AccountDoesNotExistsException e) {
+        } catch (CertificateException | AccountDoesNotExistsException | SignatureException | NoSuchAlgorithmException
+                | InvalidKeyException | IOException | AccountAlreadyExistsException | KeyStoreException
+                | UnrecoverableKeyException e) {
             return e.getMessage();
         }
         return ANSI_GREEN + "Amount deposited to your account: " + recvAmount;
@@ -209,7 +217,8 @@ public class Client {
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
-        } catch (FileNotFoundException | CertificateException|| AccountDoesNotExistsException e) {
+        } catch (FileNotFoundException | CertificateException | AccountDoesNotExistsException | NoSuchAlgorithmException
+                | InvalidKeyException | SignatureException e) {
             return e.getMessage();
         }
         return ANSI_GREEN + "Total transfers:" + transfers.replaceAll("-", "\n\t-");

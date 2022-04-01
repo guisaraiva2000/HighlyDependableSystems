@@ -1,58 +1,55 @@
 package pt.tecnico.bank.tester;
 
-import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import pt.tecnico.bank.server.grpc.Server.*;
+import pt.tecnico.bank.client.Client;
+import pt.tecnico.bank.server.ServerFrontendServiceImpl;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class CheckAccountIT {
 
     private ServerFrontendServiceImpl frontend;
+    private Client client;
 
     @BeforeEach
     public void setUp() {
         frontend = new ServerFrontendServiceImpl();
+        client = new Client(frontend, "user_tester", "test");
     }
 
     @AfterEach
     public void tearDown() {
         frontend.getService().close();
         frontend = null;
+        client = null;
     }
 
     @Test
     public void CheckAccountOKTest() {
-        OpenAccountRequest oareq = OpenAccountRequest.newBuilder()
-                .setPublicKey(ByteString.copyFromUtf8("1234567"))
-                .build();
-        frontend.openAccount(oareq);
+        client.open_account("check_account1");
+        client.open_account("check_account2");
+        client.send_amount("check_account1", "check_account2", 10);
 
-        OpenAccountRequest oareq2 = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("7654321")).build();
-        frontend.openAccount(oareq2);
+        String res1 = client.check_account("check_account1");
+        String res2 = client.check_account("check_account2");
 
-        SendAmountRequest sareq = SendAmountRequest.newBuilder()
-                .setSourceKey(ByteString.copyFromUtf8("1234567"))
-                .setDestinationKey(ByteString.copyFromUtf8("7654321"))
-                .setAmount(20).build();
-        frontend.sendAmount(sareq);
+        assertEquals(res1, "Account Status:\n" +
+                "        - Balance: 100\n" +
+                "        - On hold amount to send: 10\n" +
+                "        - Pending transfers:");
 
-        CheckAccountRequest req = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("7654321")).build();
-        CheckAccountResponse res = frontend.checkAccount(req);
-        assertEquals(0, res.getBalance());
-        assertEquals("{destination=1234567, amount=20}", res.getPendentTransfers());
+        assertEquals(res2, "Account Status:\n" +
+                "        - Balance: 100\n" +
+                "        - On hold amount to send: 0\n" +
+                "        - Pending transfers:\n" +
+                "                - To receive: 10");
     }
 
-   /* @Test
-    public void UserAlreadyExistsKOTest() {
-        CheckAccountRequest req = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("12345")).build();
-        assertEquals(
-                ALREADY_EXISTS.getCode(),
-                assertThrows(
-                        StatusRuntimeException.class, () -> frontend.openAccount(req))
-                        .getStatus()
-                        .getCode());
-    }*/
+    @Test
+    public void AccountDoesNotExistsKOTest() {
+        String res = client.check_account("check_account_not_exists");
+        assertEquals(res, "ERROR: Account does not exist");
+    }
 }

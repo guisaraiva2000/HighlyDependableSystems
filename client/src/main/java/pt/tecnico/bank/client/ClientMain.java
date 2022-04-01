@@ -1,7 +1,7 @@
 package pt.tecnico.bank.client;
 
 import io.grpc.StatusRuntimeException;
-import pt.tecnico.bank.tester.ServerFrontendServiceImpl;
+import pt.tecnico.bank.server.ServerFrontendServiceImpl;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -29,7 +29,7 @@ public class ClientMain {
 
         String ANSI_YELLOW = "\u001B[33m";
         String ANSI_RED = "\u001B[31m";
-        String PURPLE = "\033[0;35m";
+        String ANSI_PURPLE = "\033[0;35m";
 
         Scanner sin = new Scanner(System.in);
         String input;
@@ -38,7 +38,7 @@ public class ClientMain {
 
         try {
             while(true){
-                System.out.println(PURPLE + "Login to use bank application or press ENTER to leave.");
+                System.out.println(ANSI_PURPLE + "Login to use bank application or press ENTER to leave.");
                 System.out.print("Username: ");
                 System.out.flush();
                 input = sin.nextLine();

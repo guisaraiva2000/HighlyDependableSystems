@@ -1,4 +1,4 @@
-package pt.tecnico.bank.tester.domain;
+package pt.tecnico.bank.server.domain;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;

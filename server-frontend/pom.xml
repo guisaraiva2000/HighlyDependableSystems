@@ -9,7 +9,7 @@
 		<version>1.0.0-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>tester</artifactId>
+	<artifactId>server-frontend</artifactId>
 	<packaging>jar</packaging>
 	<name>${project.artifactId}</name>
 
@@ -22,7 +22,7 @@
 		<!-- instance number -->
 		<instance>1</instance>
 
-		<mainclass>pt.tecnico.bank.tester.ServerFrontend</mainclass>
+		<mainclass>pt.tecnico.bank.server.ServerFrontendMain</mainclass>
 
 	</properties>
 
@@ -40,12 +40,6 @@
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-engine</artifactId>
 			<version>${version.junit}</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>pt.tecnico.bank.T09</groupId>
-			<artifactId>client</artifactId>
-			<version>1.0.0-SNAPSHOT</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>

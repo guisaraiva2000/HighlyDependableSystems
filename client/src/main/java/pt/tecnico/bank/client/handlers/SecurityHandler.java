@@ -1,5 +1,7 @@
 package pt.tecnico.bank.client.handlers;
 
+import org.bouncycastle.cert.CertIOException;
+import org.bouncycastle.operator.OperatorCreationException;
 import pt.tecnico.bank.client.exceptions.*;
 
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
@@ -34,9 +36,9 @@ public class SecurityHandler {
         this.client_path = System.getProperty("user.dir") + "\\CLIENTS\\" + username + "\\";;
     }
 
-    public byte[] encrypt(String alias, String message){
-        byte[] signature = null;
-        try{
+    public byte[] encrypt(String alias, String message) throws SignatureException, NoSuchAlgorithmException,
+            InvalidKeyException, IOException, AccountAlreadyExistsException, KeyStoreException,
+            UnrecoverableKeyException, CertificateException {
 
             File file = new File(CERT_PATH + alias + ".cert");
             
@@ -53,19 +55,10 @@ public class SecurityHandler {
             sign.initSign(privKey);
 
             sign.update(message.getBytes(StandardCharsets.UTF_8));
-            signature = sign.sign();
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch(Exception e){
-            e.printStackTrace();
-            System.out.println(("Error in encryption"));
-        }
-
-        return signature;
+            return sign.sign();
     }
 
-    public Key getKey(String accountName) throws NoSuchAlgorithmException, KeyStoreException, IOException, CertificateException {
+    public Key getKey(String accountName) throws NoSuchAlgorithmException, KeyStoreException, IOException, CertificateException, OperatorCreationException {
         KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
         rsaKeyGen.initialize(2048);
 
@@ -102,10 +95,8 @@ public class SecurityHandler {
         return pubKey;
     }
 
-    public X509Certificate selfSign(KeyPair keyPair, String subjectDN)
-    {
+    public X509Certificate selfSign(KeyPair keyPair, String subjectDN) throws IOException, OperatorCreationException, CertificateException {
         X509Certificate certificate = null;
-        try{
             Provider bcProvider = new BouncyCastleProvider();
             Security.addProvider(bcProvider);
 
@@ -136,9 +127,6 @@ public class SecurityHandler {
             try (FileOutputStream out = new FileOutputStream(file)) {
                 out.write(buf);
             }
-        } catch (Exception e){
-            e.printStackTrace();
-        }
         return certificate;
     }
 
@@ -152,18 +140,13 @@ public class SecurityHandler {
         return cert.getPublicKey();
     }
 
-    public boolean validateResponse(PublicKey pubKey, String message, byte[] signature)
-    {
-        boolean verified = true;
-        try{
-            Signature sign = Signature.getInstance("SHA256withRSA");
-            sign.initVerify(pubKey);
-            sign.update(message.getBytes(StandardCharsets.UTF_8));
-            verified = sign.verify(signature);
-        } catch(Exception e){
-            e.printStackTrace();
-        }
-        return verified;
+    public boolean validateResponse(PublicKey pubKey, String message, byte[] signature) throws NoSuchAlgorithmException,
+            InvalidKeyException, SignatureException {
+
+        Signature sign = Signature.getInstance("SHA256withRSA");
+        sign.initVerify(pubKey);
+        sign.update(message.getBytes(StandardCharsets.UTF_8));
+        return sign.verify(signature);
     }
 
 }

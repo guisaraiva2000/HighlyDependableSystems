@@ -1,50 +1,41 @@
 package pt.tecnico.bank.tester;
 
-import com.google.protobuf.ByteString;
-import io.grpc.StatusRuntimeException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import pt.tecnico.bank.server.grpc.Server.OpenAccountRequest;
-import pt.tecnico.bank.server.grpc.Server.OpenAccountResponse;
+import pt.tecnico.bank.client.Client;
+import pt.tecnico.bank.server.ServerFrontendServiceImpl;
 
-import static io.grpc.Status.ALREADY_EXISTS;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class OpenAccountIT {
 
     private ServerFrontendServiceImpl frontend;
+    private Client client;
 
     @BeforeEach
     public void setUp() {
         frontend = new ServerFrontendServiceImpl();
+        client = new Client(frontend, "user_tester", "test");
     }
 
     @AfterEach
     public void tearDown() {
         frontend.getService().close();
         frontend = null;
+        client = null;
     }
 
     @Test
     public void OpenAccountOKTest() {
-        OpenAccountRequest req = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("openOK")).build();
-        OpenAccountResponse res = frontend.openAccount(req);
-        assertTrue(res.getAck());
+        String res = client.open_account("test_account");
+        assertEquals(res, "Account with name test_account created");
     }
 
     @Test
-    public void UserAlreadyExistsKOTest() {
-        OpenAccountRequest req1 = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("openNOK")).build();
-        frontend.openAccount(req1);
-
-        OpenAccountRequest req2 = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("openNOK")).build();
-        assertEquals(
-                ALREADY_EXISTS.getCode(),
-                assertThrows(
-                        StatusRuntimeException.class, () -> frontend.openAccount(req2))
-                        .getStatus()
-                        .getCode());
+    public void AccountAlreadyExistsKOTest() {
+        String res = client.open_account("test_account");
+        assertEquals(res, "ERROR: Account already exists.");
     }
 
 }

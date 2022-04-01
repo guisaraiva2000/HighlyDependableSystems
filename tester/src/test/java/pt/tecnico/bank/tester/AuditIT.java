@@ -1,67 +1,87 @@
 package pt.tecnico.bank.tester;
 
-import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import pt.tecnico.bank.server.grpc.Server.*;
+import pt.tecnico.bank.client.Client;
+import pt.tecnico.bank.server.ServerFrontendServiceImpl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class AuditIT {
 
     private ServerFrontendServiceImpl frontend;
+    private Client client;
 
     @BeforeEach
     public void setUp() {
         frontend = new ServerFrontendServiceImpl();
+        client = new Client(frontend, "user_tester", "test");
     }
 
     @AfterEach
     public void tearDown() {
         frontend.getService().close();
         frontend = null;
+        client = null;
     }
 
     @Test
     public void AuditOKTest() {
-        OpenAccountRequest oareq = OpenAccountRequest.newBuilder()
-                .setPublicKey(ByteString.copyFromUtf8("12345678"))
-                .build();
-        frontend.openAccount(oareq);
+        client.open_account("audit_account1");
+        client.open_account("audit_account2");
+        client.send_amount("audit_account1", "audit_account2", 10);
+        client.receive_amount("audit_account1");
 
-        OpenAccountRequest oareq2 = OpenAccountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("87654321")).build();
-        frontend.openAccount(oareq2);
+        String res1 = client.audit("audit_account1");
+        String res2 = client.audit("audit_account2");
 
-        SendAmountRequest sareq = SendAmountRequest.newBuilder()
-                .setSourceKey(ByteString.copyFromUtf8("12345678"))
-                .setDestinationKey(ByteString.copyFromUtf8("87654321"))
-                .setAmount(20).build();
-        frontend.sendAmount(sareq);
-
-        ReceiveAmountRequest rareq = ReceiveAmountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("87654321")).build();
-        frontend.receiveAmount(rareq);
-
-        AuditRequest req = AuditRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("12345678")).build();
-        AuditResponse res = frontend.auditResponse(req);
-
-        AuditRequest req2 = AuditRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("87654321")).build();
-        AuditResponse res2 = frontend.auditResponse(req2);
-
-        assertEquals("{destination=87654321, amount=-20}", res.getTransferHistory());
-        assertEquals("{destination=12345678, amount=20}", res2.getTransferHistory());
-
+        assertEquals(res1, "Total transfers:\n" +
+                "        - Sent: 10");
+        assertEquals(res2, "Total transfers:\n" +
+                "        - Received: 10");
     }
 
-    /*@Test
-    public void UserAlreadyExistsKOTest() {
-        SendAmountRequest req = SendAmountRequest.newBuilder().setPublicKey(ByteString.copyFromUtf8("12345")).build();
-        assertEquals(
-                ALREADY_EXISTS.getCode(),
-                assertThrows(
-                        StatusRuntimeException.class, () -> frontend.openAccount(req))
-                        .getStatus()
-                        .getCode());
-    }*/
+    @Test
+    public void AuditOKTest2() {
+        client.open_account("audit_account1");
+        client.open_account("audit_account2");
+        client.send_amount("audit_account1", "audit_account2", 10);
+        client.send_amount("audit_account2", "audit_account1", 30);
+
+        String res1 = client.check_account("audit_account1");
+        String res2 = client.check_account("audit_account2");
+
+        client.receive_amount("audit_account1");
+        client.receive_amount("audit_account2");
+
+        String res3 = client.audit("audit_account1");
+        String res4 = client.audit("audit_account2");
+
+        assertEquals(res1, "Account Status:\n" +
+                "        - Balance: 100\n" +
+                "        - On hold amount to send: 10\n" +
+                "        - Pending transfers:\n" +
+                "                - To receive: 30");
+
+        assertEquals(res2, "Account Status:\n" +
+                "        - Balance: 100\n" +
+                "        - On hold amount to send: 30\n" +
+                "        - Pending transfers:\n" +
+                "                - To receive: 10");
+
+        assertEquals(res3, "Total transfers:\n" +
+                "        - Received: 30\n" +
+                "        - Sent: 10");
+
+        assertEquals(res4, "Total transfers:\n" +
+                "        - Sent: 30\n" +
+                "        - Received: 10");
+    }
+
+    @Test
+    public void AccountDoesNotExistsKOTest() {
+        String res = client.audit("audit_account_not_exists");
+        assertEquals(res, "ERROR: Account does not exist");
+    }
 }

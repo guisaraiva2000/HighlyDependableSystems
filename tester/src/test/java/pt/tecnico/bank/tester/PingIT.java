@@ -2,6 +2,7 @@ package pt.tecnico.bank.tester;
 
 import io.grpc.StatusRuntimeException;
 import org.junit.jupiter.api.*;
+import pt.tecnico.bank.server.ServerFrontendServiceImpl;
 import pt.tecnico.bank.server.grpc.Server;
 import pt.tecnico.bank.server.grpc.Server.*;
 
