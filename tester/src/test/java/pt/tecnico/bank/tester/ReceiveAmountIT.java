@@ -44,8 +44,20 @@ public class ReceiveAmountIT {
 
     @Test
     public void AccountDoesNotExistsKOTest() {
-        String res = client.check_account("receive_account_not_exists");
+        String res = client.receive_amount("receive_account_not_exists");
         assertEquals(client.ANSI_RED + "ERROR: Account does not exist.", res);
+    }
+
+    @Test
+    public void ManInTheMiddleKOTest() {
+        client.open_account("receive_account1_2");
+        client.open_account("receive_account2_2");
+        client.send_amount("receive_account1_2", "receive_account2_2", 10);
+
+        Client attacker = new Client(frontend, "attacker", "pass1");
+        String res = attacker.receive_amount("receive_account2_2");
+
+        assertEquals(client.ANSI_RED + "ERROR: You do not have permission to perform this operation.", res);
     }
 
     @AfterAll
