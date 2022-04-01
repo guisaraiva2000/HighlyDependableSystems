@@ -13,23 +13,22 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.security.*;
 import java.security.cert.CertificateException;
-import java.io.File;
 
 public class Client {
 
-    public static final String ANSI_GREEN = "\033[0;32m";
-    public static final String ANSI_RED = "\033[0;31m";
+    public final String ANSI_GREEN = "\033[0;32m";
+    public final String ANSI_RED = "\033[0;31m";
 
     private final ServerFrontendServiceImpl frontend;
     private final SecurityHandler securityHandler;
     private final int VALIDITY_INTERVAL = 60 * 10;
 
-    public Client(ServerFrontendServiceImpl frontend, String username, String password){
+    public Client(ServerFrontendServiceImpl frontend, String username, String password) {
         this.frontend = frontend;
         this.securityHandler = new SecurityHandler(username, password);
     }
 
-    public String open_account(String accountName){
+    public String open_account(String accountName) {
         try {
             securityHandler.accountExists(accountName);
 
@@ -48,13 +47,13 @@ public class Client {
             boolean ack = res.getAck();
             ByteString keyString = res.getPublicKey();
             byte[] key = new byte[698];
-            keyString.copyTo(key,0);
+            keyString.copyTo(key, 0);
             byte[] newSignature = new byte[256];
-            res.getSignature().copyTo(newSignature,0);
+            res.getSignature().copyTo(newSignature, 0);
 
             String message = ack + pubKey.toString();
 
-            if(!securityHandler.validateResponse(securityHandler.getPublicKey("server"), message, newSignature))
+            if (!securityHandler.validateResponse(securityHandler.getPublicKey("server"), message, newSignature))
                 return mimWarn();
 
         } catch (StatusRuntimeException e) {
@@ -62,12 +61,12 @@ public class Client {
         } catch (CertificateException | NoSuchAlgorithmException | KeyStoreException | IOException
                 | AccountAlreadyExistsException | UnrecoverableKeyException | SignatureException | InvalidKeyException
                 | AccountDoesNotExistsException | OperatorCreationException e) {
-            return e.getMessage();
+            return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Account with name " + accountName + " created";
     }
 
-    public String send_amount(String senderAccount, String receiverAccount, int amount){
+    public String send_amount(String senderAccount, String receiverAccount, int amount) {
         try {
             long nonce = new SecureRandom().nextLong();
             long timestamp = System.currentTimeMillis() / 1000;
@@ -95,7 +94,7 @@ public class Client {
             long newNonce = response.getNonce();
             ByteString sig = response.getSignature();
             byte[] newSignature = new byte[256];
-            sig.copyTo(newSignature,0);
+            sig.copyTo(newSignature, 0);
 
             String newMessage = String.valueOf(ack) + origKey.toString() + String.valueOf(newNonce) + timestamp + newTimestamp;
 
@@ -103,24 +102,24 @@ public class Client {
                     ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce))
                 return mimWarn();
 
-        } catch (StatusRuntimeException  e) {
+        } catch (StatusRuntimeException e) {
             return handleError(e);
         } catch (AccountDoesNotExistsException | CertificateException | SignatureException | NoSuchAlgorithmException
                 | InvalidKeyException | IOException | KeyStoreException
                 | UnrecoverableKeyException e) {
-            return e.getMessage();
+            return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Sent " + amount + " from " + senderAccount + " to " + receiverAccount;
     }
 
-    public String check_account(String checkAccountName){
+    public String check_account(String checkAccountName) {
         int balance, pendentAmount;
         String transfers;
 
         try {
             PublicKey key = securityHandler.getPublicKey(checkAccountName);
             CheckAccountRequest req = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded()))
-                                                                        .build();
+                    .build();
             CheckAccountResponse res = frontend.checkAccount(req);
 
             balance = res.getBalance();
@@ -129,13 +128,13 @@ public class Client {
             long newTimestamp = res.getNewTimestamp();
             ByteString sig = res.getSignature();
             byte[] newSignature = new byte[256];
-            sig.copyTo(newSignature,0);
+            sig.copyTo(newSignature, 0);
 
             String newMessage = String.valueOf(balance) + pendentAmount + transfers + newTimestamp;
 
             long timeValidity = System.currentTimeMillis() / 1000 - newTimestamp;
 
-            if(!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature)
+            if (!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature)
                     && timeValidity <= VALIDITY_INTERVAL))
                 return mimWarn();
 
@@ -143,7 +142,7 @@ public class Client {
             return handleError(e);
         } catch (FileNotFoundException | CertificateException | AccountDoesNotExistsException | NoSuchAlgorithmException
                 | InvalidKeyException | SignatureException e) {
-            return e.getMessage();
+            return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Account Status:\n\t" +
                 "- Balance: " + balance +
@@ -151,7 +150,7 @@ public class Client {
                 "\n\t- Pending transfers:" + transfers.replaceAll("-", "\n\t\t-");
     }
 
-    public String receive_amount(String accountName){
+    public String receive_amount(String accountName) {
         int recvAmount;
         try {
             long nonce = new SecureRandom().nextLong();
@@ -190,30 +189,30 @@ public class Client {
         } catch (CertificateException | AccountDoesNotExistsException | SignatureException | NoSuchAlgorithmException
                 | InvalidKeyException | IOException | KeyStoreException
                 | UnrecoverableKeyException e) {
-            return e.getMessage();
+            return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Amount deposited to your account: " + recvAmount;
     }
 
-    public String audit(String checkAccountName){
+    public String audit(String checkAccountName) {
         String transfers;
         try {
             PublicKey key = securityHandler.getPublicKey(checkAccountName);
 
             AuditRequest req = AuditRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded()))
-                                                        .build();
+                    .build();
             AuditResponse res = frontend.auditResponse(req);
 
             transfers = res.getTransferHistory();
             long newTimestamp = res.getNewTimestamp();
             ByteString sig = res.getSignature();
             byte[] newSignature = new byte[256];
-            sig.copyTo(newSignature,0);
+            sig.copyTo(newSignature, 0);
 
             long timeValidity = System.currentTimeMillis() / 1000 - newTimestamp;
             String newMessage = transfers + newTimestamp;
 
-            if(!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature)
+            if (!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature)
                     && timeValidity <= VALIDITY_INTERVAL))
                 return mimWarn();
 
@@ -221,7 +220,7 @@ public class Client {
             return handleError(e);
         } catch (FileNotFoundException | CertificateException | AccountDoesNotExistsException | NoSuchAlgorithmException
                 | InvalidKeyException | SignatureException e) {
-            return e.getMessage();
+            return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Total transfers:" + transfers.replaceAll("-", "\n\t-");
     }
@@ -235,6 +234,6 @@ public class Client {
     }
 
     private String mimWarn() {
-         return ANSI_RED + "WARNING! Invalid message from server. Someone might be intercepting your messages with the server.";
+        return ANSI_RED + "WARNING! Invalid message from server. Someone might be intercepting your messages with the server.";
     }
 }

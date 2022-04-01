@@ -1,6 +1,10 @@
 package pt.tecnico.bank.tester;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Objects;
 import java.util.Properties;
 
 import org.junit.jupiter.api.*;
@@ -28,7 +32,10 @@ public class BaseIT {
 	
 	@AfterAll
 	public static void cleanup() {
-		
+		File dir = Paths.get(System.getProperty("user.dir") + "\\CERTIFICATES\\").toFile();
+		for(File file: Objects.requireNonNull(dir.listFiles()))
+			if (!file.isDirectory() && !file.getName().equals("server.cert"))
+				file.delete();
 	}
 
 }

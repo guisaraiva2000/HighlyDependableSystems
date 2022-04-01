@@ -1,10 +1,15 @@
 package pt.tecnico.bank.tester;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import pt.tecnico.bank.client.Client;
 import pt.tecnico.bank.server.ServerFrontendServiceImpl;
+
+import java.io.File;
+import java.nio.file.Paths;
+import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -29,13 +34,21 @@ public class OpenAccountIT {
     @Test
     public void OpenAccountOKTest() {
         String res = client.open_account("test_account");
-        assertEquals(res, "Account with name test_account created");
+        assertEquals(client.ANSI_GREEN + "Account with name test_account created", res);
     }
 
     @Test
     public void AccountAlreadyExistsKOTest() {
         String res = client.open_account("test_account");
-        assertEquals(res, "ERROR: Account already exists.");
+        assertEquals(client.ANSI_RED + "ERROR: Account already exists.", res);
+    }
+
+    @AfterAll
+    public static void cleanup() {
+        File dir = Paths.get(System.getProperty("user.dir") + "\\CERTIFICATES\\").toFile();
+        for(File file: Objects.requireNonNull(dir.listFiles()))
+            if (!file.isDirectory() && !file.getName().equals("server.cert"))
+                file.delete();
     }
 
 }

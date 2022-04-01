@@ -53,7 +53,7 @@ mvn exec:java
 
 ### Testing
 
-To run the integrations tests, access the **_tester_** folder and execute:
+To run the integrations tests, start the server, then access the **_tester_** folder and execute:
 ```
 mvn verify
 ```

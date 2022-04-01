@@ -1,9 +1,5 @@
 package pt.tecnico.bank.client.handlers;
 
-import org.bouncycastle.cert.CertIOException;
-import org.bouncycastle.operator.OperatorCreationException;
-import pt.tecnico.bank.client.exceptions.*;
-
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.BasicConstraints;
@@ -11,7 +7,10 @@ import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import pt.tecnico.bank.client.exceptions.AccountAlreadyExistsException;
+import pt.tecnico.bank.client.exceptions.AccountDoesNotExistsException;
 
 import java.io.*;
 import java.math.BigInteger;
@@ -28,34 +27,34 @@ public class SecurityHandler {
     private final String username;
     private final String password;
     private final String client_path;
-    private final String CERT_PATH = System.getProperty("user.dir") + "\\CERTIFICATES\\";
+    private final String CERT_PATH = System.getProperty("user.dir") + File.separator + "CERTIFICATES" +  File.separator;
 
     public SecurityHandler(String username, String password) {
         this.username = username;
         this.password = password;
-        this.client_path = System.getProperty("user.dir") + "\\CLIENTS\\" + username + "\\";;
+        this.client_path = System.getProperty("user.dir") + File.separator + "CLIENTS" + File.separator + username + File.separator;
     }
 
     public byte[] encrypt(String alias, String message) throws SignatureException, NoSuchAlgorithmException,
             InvalidKeyException, IOException, KeyStoreException,
             UnrecoverableKeyException, CertificateException {
 
-            KeyStore ks = KeyStore.getInstance("JCEKS");
-            ks.load(new FileInputStream(client_path + username +".jks"), password.toCharArray());
+        KeyStore ks = KeyStore.getInstance("JCEKS");
+        ks.load(new FileInputStream(client_path + username + ".jks"), password.toCharArray());
 
-            PrivateKey privKey = (PrivateKey) ks.getKey(alias, password.toCharArray());
+        PrivateKey privKey = (PrivateKey) ks.getKey(alias, password.toCharArray());
 
-            // SIGNATURE
-            Signature sign = Signature.getInstance("SHA256withRSA");
-            sign.initSign(privKey);
+        // SIGNATURE
+        Signature sign = Signature.getInstance("SHA256withRSA");
+        sign.initSign(privKey);
 
-            sign.update(message.getBytes(StandardCharsets.UTF_8));
-            return sign.sign();
+        sign.update(message.getBytes(StandardCharsets.UTF_8));
+        return sign.sign();
     }
 
     public void accountExists(String alias) throws AccountAlreadyExistsException {
         File file = new File(CERT_PATH + alias + ".cert");
-        if(file.exists())
+        if (file.exists())
             throw new AccountAlreadyExistsException();
     }
 
@@ -72,7 +71,7 @@ public class SecurityHandler {
 
         File file = new File(client_path + username + ".jks");
 
-        if(!file.exists())
+        if (!file.exists())
             ks.load(null, password.toCharArray());
         else
             ks.load(new FileInputStream(file), password.toCharArray());
@@ -97,43 +96,43 @@ public class SecurityHandler {
     }
 
     public X509Certificate selfSign(KeyPair keyPair, String subjectDN) throws IOException, OperatorCreationException, CertificateException {
-        X509Certificate certificate = null;
-            Provider bcProvider = new BouncyCastleProvider();
-            Security.addProvider(bcProvider);
+        X509Certificate certificate;
+        Provider bcProvider = new BouncyCastleProvider();
+        Security.addProvider(bcProvider);
 
-            long now = System.currentTimeMillis();
-            Date startDate = new Date(now);
+        long now = System.currentTimeMillis();
+        Date startDate = new Date(now);
 
-            X500Name dnName = new X500Name("CN="+subjectDN);
-            BigInteger certSerialNumber = new BigInteger(Long.toString(now)); // <-- Using the current timestamp as the certificate serial number
+        X500Name dnName = new X500Name("CN=" + subjectDN);
+        BigInteger certSerialNumber = new BigInteger(Long.toString(now)); // <-- Using the current timestamp as the certificate serial number
 
-            Calendar calendar = Calendar.getInstance();
-            calendar.setTime(startDate);
-            calendar.add(Calendar.YEAR, 1); // <-- 1 Yr validity
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(startDate);
+        calendar.add(Calendar.YEAR, 1); // <-- 1 Yr validity
 
-            Date endDate = calendar.getTime();
-            String signatureAlgorithm = "SHA256WithRSA"; // <-- Use appropriate signature algorithm based on your keyPair algorithm.
-            ContentSigner contentSigner = new JcaContentSignerBuilder(signatureAlgorithm).build(keyPair.getPrivate());
-            JcaX509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(dnName, certSerialNumber, startDate, endDate, dnName, keyPair.getPublic());
+        Date endDate = calendar.getTime();
+        String signatureAlgorithm = "SHA256WithRSA"; // <-- Use appropriate signature algorithm based on your keyPair algorithm.
+        ContentSigner contentSigner = new JcaContentSignerBuilder(signatureAlgorithm).build(keyPair.getPrivate());
+        JcaX509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(dnName, certSerialNumber, startDate, endDate, dnName, keyPair.getPublic());
 
-            // Basic Constraints
-            BasicConstraints basicConstraints = new BasicConstraints(true); // <-- true for CA, false for EndEntity
-            certBuilder.addExtension(new ASN1ObjectIdentifier("2.5.29.19"), true, basicConstraints); // Basic Constraints is usually marked as critical.
-            certificate = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certBuilder.build(contentSigner));
+        // Basic Constraints
+        BasicConstraints basicConstraints = new BasicConstraints(true); // <-- true for CA, false for EndEntity
+        certBuilder.addExtension(new ASN1ObjectIdentifier("2.5.29.19"), true, basicConstraints); // Basic Constraints is usually marked as critical.
+        certificate = new JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certBuilder.build(contentSigner));
 
-            byte[] buf = certificate.getEncoded();
+        byte[] buf = certificate.getEncoded();
 
-            File file = new File(CERT_PATH + subjectDN + ".cert");
-            file.createNewFile();
-            try (FileOutputStream out = new FileOutputStream(file)) {
-                out.write(buf);
-            }
+        File file = new File(CERT_PATH + subjectDN + ".cert");
+        file.createNewFile();
+        try (FileOutputStream out = new FileOutputStream(file)) {
+            out.write(buf);
+        }
         return certificate;
     }
 
     public PublicKey getPublicKey(String alias) throws CertificateException, FileNotFoundException, AccountDoesNotExistsException {
         File file = new File(CERT_PATH + alias + ".cert");
-        if(!file.exists())
+        if (!file.exists())
             throw new AccountDoesNotExistsException();
         CertificateFactory fac = CertificateFactory.getInstance("X509");
         FileInputStream in = new FileInputStream(CERT_PATH + alias + ".cert");
