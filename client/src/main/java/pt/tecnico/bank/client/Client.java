@@ -5,6 +5,7 @@ import io.grpc.StatusRuntimeException;
 import org.bouncycastle.operator.OperatorCreationException;
 import pt.tecnico.bank.client.exceptions.AccountAlreadyExistsException;
 import pt.tecnico.bank.client.exceptions.AccountDoesNotExistsException;
+import pt.tecnico.bank.client.exceptions.UnauthorizedOperationException;
 import pt.tecnico.bank.client.handlers.SecurityHandler;
 import pt.tecnico.bank.server.ServerFrontendServiceImpl;
 import pt.tecnico.bank.server.grpc.Server.*;
@@ -58,9 +59,9 @@ public class Client {
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
-        } catch (CertificateException | NoSuchAlgorithmException | KeyStoreException | IOException
-                | AccountAlreadyExistsException | UnrecoverableKeyException | SignatureException | InvalidKeyException
-                | AccountDoesNotExistsException | OperatorCreationException e) {
+        } catch (CertificateException | NoSuchAlgorithmException | KeyStoreException | IOException | AccountAlreadyExistsException
+                | UnrecoverableKeyException | SignatureException | InvalidKeyException | AccountDoesNotExistsException
+                | OperatorCreationException | UnauthorizedOperationException e) {
             return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Account with name " + accountName + " created";
@@ -105,8 +106,7 @@ public class Client {
         } catch (StatusRuntimeException e) {
             return handleError(e);
         } catch (AccountDoesNotExistsException | CertificateException | SignatureException | NoSuchAlgorithmException
-                | InvalidKeyException | IOException | KeyStoreException
-                | UnrecoverableKeyException e) {
+                | InvalidKeyException | IOException | KeyStoreException | UnrecoverableKeyException | UnauthorizedOperationException e) {
             return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Sent " + amount + " from " + senderAccount + " to " + receiverAccount;
@@ -187,8 +187,7 @@ public class Client {
         } catch (StatusRuntimeException e) {
             return handleError(e);
         } catch (CertificateException | AccountDoesNotExistsException | SignatureException | NoSuchAlgorithmException
-                | InvalidKeyException | IOException | KeyStoreException
-                | UnrecoverableKeyException e) {
+                | InvalidKeyException | IOException | KeyStoreException | UnrecoverableKeyException | UnauthorizedOperationException e) {
             return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Amount deposited to your account: " + recvAmount;

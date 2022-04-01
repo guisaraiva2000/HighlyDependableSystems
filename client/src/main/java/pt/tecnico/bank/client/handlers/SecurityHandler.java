@@ -11,6 +11,7 @@ import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import pt.tecnico.bank.client.exceptions.AccountAlreadyExistsException;
 import pt.tecnico.bank.client.exceptions.AccountDoesNotExistsException;
+import pt.tecnico.bank.client.exceptions.UnauthorizedOperationException;
 
 import java.io.*;
 import java.math.BigInteger;
@@ -36,8 +37,7 @@ public class SecurityHandler {
     }
 
     public byte[] encrypt(String alias, String message) throws SignatureException, NoSuchAlgorithmException,
-            InvalidKeyException, IOException, KeyStoreException,
-            UnrecoverableKeyException, CertificateException {
+            IOException, KeyStoreException, UnrecoverableKeyException, CertificateException, UnauthorizedOperationException {
 
         KeyStore ks = KeyStore.getInstance("JCEKS");
         ks.load(new FileInputStream(client_path + username + ".jks"), password.toCharArray());
@@ -46,7 +46,11 @@ public class SecurityHandler {
 
         // SIGNATURE
         Signature sign = Signature.getInstance("SHA256withRSA");
-        sign.initSign(privKey);
+        try {
+            sign.initSign(privKey);
+        } catch (InvalidKeyException e) {
+            throw new UnauthorizedOperationException();
+        }
 
         sign.update(message.getBytes(StandardCharsets.UTF_8));
         return sign.sign();
