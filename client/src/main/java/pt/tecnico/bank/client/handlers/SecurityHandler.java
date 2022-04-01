@@ -37,13 +37,8 @@ public class SecurityHandler {
     }
 
     public byte[] encrypt(String alias, String message) throws SignatureException, NoSuchAlgorithmException,
-            InvalidKeyException, IOException, AccountAlreadyExistsException, KeyStoreException,
+            InvalidKeyException, IOException, KeyStoreException,
             UnrecoverableKeyException, CertificateException {
-
-            File file = new File(CERT_PATH + alias + ".cert");
-            
-            if(file.exists())
-                throw new AccountAlreadyExistsException();
 
             KeyStore ks = KeyStore.getInstance("JCEKS");
             ks.load(new FileInputStream(client_path + username +".jks"), password.toCharArray());
@@ -56,6 +51,12 @@ public class SecurityHandler {
 
             sign.update(message.getBytes(StandardCharsets.UTF_8));
             return sign.sign();
+    }
+
+    public void accountExists(String alias) throws AccountAlreadyExistsException {
+        File file = new File(CERT_PATH + alias + ".cert");
+        if(file.exists())
+            throw new AccountAlreadyExistsException();
     }
 
     public Key getKey(String accountName) throws NoSuchAlgorithmException, KeyStoreException, IOException, CertificateException, OperatorCreationException {

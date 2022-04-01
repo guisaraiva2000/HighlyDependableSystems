@@ -31,6 +31,8 @@ public class Client {
 
     public String open_account(String accountName){
         try {
+            securityHandler.accountExists(accountName);
+
             Key pubKey = securityHandler.getKey(accountName);
             byte[] encoded = pubKey.getEncoded();
 
@@ -104,7 +106,7 @@ public class Client {
         } catch (StatusRuntimeException  e) {
             return handleError(e);
         } catch (AccountDoesNotExistsException | CertificateException | SignatureException | NoSuchAlgorithmException
-                | InvalidKeyException | IOException | AccountAlreadyExistsException | KeyStoreException
+                | InvalidKeyException | IOException | KeyStoreException
                 | UnrecoverableKeyException e) {
             return e.getMessage();
         }
@@ -186,7 +188,7 @@ public class Client {
         } catch (StatusRuntimeException e) {
             return handleError(e);
         } catch (CertificateException | AccountDoesNotExistsException | SignatureException | NoSuchAlgorithmException
-                | InvalidKeyException | IOException | AccountAlreadyExistsException | KeyStoreException
+                | InvalidKeyException | IOException | KeyStoreException
                 | UnrecoverableKeyException e) {
             return e.getMessage();
         }
