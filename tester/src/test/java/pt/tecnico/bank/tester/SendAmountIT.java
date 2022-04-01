@@ -49,7 +49,7 @@ public class SendAmountIT extends RunListener {
 
     @AfterAll
     public static void cleanup() {
-        File dir = Paths.get(System.getProperty("user.dir") , "CERTIFICATES").toFile();
+        File dir = Paths.get(System.getProperty("user.dir") + File.separator + "CERTIFICATES" + File.separator).toFile();
         for(File file: Objects.requireNonNull(dir.listFiles()))
             if (!file.isDirectory() && !file.getName().equals("server.cert"))
                 file.delete();
