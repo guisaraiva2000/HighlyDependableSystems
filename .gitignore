@@ -165,3 +165,6 @@ modules.xml
 
 # VS Code
 .vscode/
+
+.jks
+.key

@@ -1,27 +1,28 @@
 package pt.tecnico.bank.client;
 
 import io.grpc.StatusRuntimeException;
-import pt.tecnico.bank.server.ServerFrontendServiceImpl;
+import pt.tecnico.bank.server.ServerFrontend;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Scanner;
 
 public class ClientMain {
 
-    private final static String USER_PATH = System.getProperty("user.dir") + "\\CLIENTS\\users.txt";
+    private final static String USER_PATH = System.getProperty("user.dir") + File.separator + "CLIENTS" + File.separator + "users.txt";
     private static String username = "";
     private static String password = "";
     public static void main(String[] args) {
 
         System.out.println(ClientMain.class.getSimpleName());
 
-        ServerFrontendServiceImpl frontend;
+        ServerFrontend frontend;
         Client client;
 
         try {
-            frontend = new ServerFrontendServiceImpl();
+            frontend = new ServerFrontend();
         } catch (Exception e) {
             System.out.println("Caught exception with description: " + e.getMessage());
             return;
@@ -121,7 +122,7 @@ public class ClientMain {
         } catch (Exception e){
             e.printStackTrace();
         } finally {
-            frontend.getService().close();
+            frontend.close();
             System.exit(0);
         }
     }
@@ -149,6 +150,7 @@ public class ClientMain {
         System.out.println(ANSI_CYAN + "| check   %account_name% %client_account_name%                      |");
         System.out.println(ANSI_CYAN + "| receive %account_name%                                            |");
         System.out.println(ANSI_CYAN + "| audit   %account_name% %client_account_name%                      |");
+        System.out.println(ANSI_CYAN + "| quit                                                              |");
         System.out.println(ANSI_CYAN + "|-------------------------------------------------------------------|");
     }
 }

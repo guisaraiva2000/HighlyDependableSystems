@@ -37,7 +37,8 @@ public class SecurityHandler {
     }
 
     public byte[] encrypt(String alias, String message) throws SignatureException, NoSuchAlgorithmException,
-            IOException, KeyStoreException, UnrecoverableKeyException, CertificateException, UnauthorizedOperationException {
+            IOException, KeyStoreException, UnrecoverableKeyException, CertificateException,
+            UnauthorizedOperationException, InvalidKeyException {
 
         KeyStore ks = KeyStore.getInstance("JCEKS");
         ks.load(new FileInputStream(client_path + username + ".jks"), password.toCharArray());
@@ -46,11 +47,7 @@ public class SecurityHandler {
 
         // SIGNATURE
         Signature sign = Signature.getInstance("SHA256withRSA");
-        try {
-            sign.initSign(privKey);
-        } catch (InvalidKeyException e) {
-            throw new UnauthorizedOperationException();
-        }
+        sign.initSign(privKey);
 
         sign.update(message.getBytes(StandardCharsets.UTF_8));
         return sign.sign();

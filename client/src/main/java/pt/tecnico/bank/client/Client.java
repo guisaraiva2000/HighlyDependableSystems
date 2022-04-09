@@ -5,9 +5,10 @@ import io.grpc.StatusRuntimeException;
 import org.bouncycastle.operator.OperatorCreationException;
 import pt.tecnico.bank.client.exceptions.AccountAlreadyExistsException;
 import pt.tecnico.bank.client.exceptions.AccountDoesNotExistsException;
+import pt.tecnico.bank.client.exceptions.InvalidAmountException;
 import pt.tecnico.bank.client.exceptions.UnauthorizedOperationException;
 import pt.tecnico.bank.client.handlers.SecurityHandler;
-import pt.tecnico.bank.server.ServerFrontendServiceImpl;
+import pt.tecnico.bank.server.ServerFrontend;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 import java.io.FileNotFoundException;
@@ -20,11 +21,11 @@ public class Client {
     public final String ANSI_GREEN = "\033[0;32m";
     public final String ANSI_RED = "\033[0;31m";
 
-    private final ServerFrontendServiceImpl frontend;
+    private final ServerFrontend frontend;
     private final SecurityHandler securityHandler;
     private final int VALIDITY_INTERVAL = 60 * 10;
 
-    public Client(ServerFrontendServiceImpl frontend, String username, String password) {
+    public Client(ServerFrontend frontend, String username, String password) {
         this.frontend = frontend;
         this.securityHandler = new SecurityHandler(username, password);
     }
@@ -69,6 +70,8 @@ public class Client {
 
     public String send_amount(String senderAccount, String receiverAccount, int amount) {
         try {
+            if (amount < 0)
+                throw new InvalidAmountException();
             long nonce = new SecureRandom().nextLong();
             long timestamp = System.currentTimeMillis() / 1000;
 
@@ -97,7 +100,7 @@ public class Client {
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature, 0);
 
-            String newMessage = String.valueOf(ack) + origKey.toString() + String.valueOf(newNonce) + timestamp + newTimestamp;
+            String newMessage = ack + origKey.toString() + newNonce + timestamp + newTimestamp;
 
             if (!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
                     ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce))
@@ -106,7 +109,8 @@ public class Client {
         } catch (StatusRuntimeException e) {
             return handleError(e);
         } catch (AccountDoesNotExistsException | CertificateException | SignatureException | NoSuchAlgorithmException
-                | InvalidKeyException | IOException | KeyStoreException | UnrecoverableKeyException | UnauthorizedOperationException e) {
+                | InvalidKeyException | IOException | KeyStoreException | UnrecoverableKeyException
+                | UnauthorizedOperationException | InvalidAmountException e) {
             return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Sent " + amount + " from " + senderAccount + " to " + receiverAccount;
@@ -178,7 +182,7 @@ public class Client {
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature, 0);
 
-            String newMessage = String.valueOf(recvAmount) + key.toString() + String.valueOf(newNonce) + timestamp + newTimestamp;
+            String newMessage = recvAmount + key.toString() + newNonce + timestamp + newTimestamp;
 
             if (!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
                     recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce))
@@ -200,7 +204,7 @@ public class Client {
 
             AuditRequest req = AuditRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded()))
                     .build();
-            AuditResponse res = frontend.auditResponse(req);
+            AuditResponse res = frontend.audit(req);
 
             transfers = res.getTransferHistory();
             long newTimestamp = res.getNewTimestamp();
@@ -221,7 +225,7 @@ public class Client {
                 | InvalidKeyException | SignatureException e) {
             return ANSI_RED + e.getMessage();
         }
-        return ANSI_GREEN + "Total transfers:" + transfers.replaceAll("-", "\n\t-");
+        return ANSI_GREEN + "Total transfers: " + transfers.replaceAll("-", "\n\t-");
     }
 
     private String handleError(StatusRuntimeException e) {

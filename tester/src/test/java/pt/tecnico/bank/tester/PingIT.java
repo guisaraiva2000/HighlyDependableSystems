@@ -2,7 +2,7 @@ package pt.tecnico.bank.tester;
 
 import io.grpc.StatusRuntimeException;
 import org.junit.jupiter.api.*;
-import pt.tecnico.bank.server.ServerFrontendServiceImpl;
+import pt.tecnico.bank.server.ServerFrontend;
 import pt.tecnico.bank.server.grpc.Server;
 import pt.tecnico.bank.server.grpc.Server.*;
 
@@ -12,16 +12,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class PingIT {
 
-    private ServerFrontendServiceImpl frontend;
+    private ServerFrontend frontend;
 
     @BeforeEach
     public void setUp() {
-        frontend = new ServerFrontendServiceImpl();
+        frontend = new ServerFrontend();
     }
 
     @AfterEach
     public void tearDown() {
-        frontend.getService().close();
+        frontend.close();
         frontend = null;
     }
 

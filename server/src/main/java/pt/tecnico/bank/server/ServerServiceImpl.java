@@ -27,7 +27,6 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
 
     public ServerServiceImpl() {
         this.server = new Server();
-        this.server.loadState();
     }
 
     @Override
@@ -75,7 +74,8 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     @Override
     public void sendAmount(SendAmountRequest request, StreamObserver<SendAmountResponse> responseObserver) {
         try {
-            String[] r = server.sendAmount(request.getSourceKey(), request.getDestinationKey(), request.getAmount(), request.getNonce(), request.getTimestamp(), request.getSignature());
+            String[] r = server.sendAmount(request.getSourceKey(), request.getDestinationKey(), request.getAmount(),
+                    request.getNonce(), request.getTimestamp(), request.getSignature());
             
             boolean ack = Objects.equals(r[0], "true");
 

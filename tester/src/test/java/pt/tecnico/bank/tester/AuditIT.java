@@ -5,7 +5,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import pt.tecnico.bank.client.Client;
-import pt.tecnico.bank.server.ServerFrontendServiceImpl;
+import pt.tecnico.bank.server.ServerFrontend;
 
 import java.io.File;
 import java.nio.file.Paths;
@@ -15,18 +15,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class AuditIT {
 
-    private ServerFrontendServiceImpl frontend;
+    private ServerFrontend frontend;
     private Client client;
 
     @BeforeEach
     public void setUp() {
-        frontend = new ServerFrontendServiceImpl();
+        frontend = new ServerFrontend();
         client = new Client(frontend, "user_tester", "test");
     }
 
     @AfterEach
     public void tearDown() {
-        frontend.getService().close();
+        frontend.close();
         frontend = null;
         client = null;
     }

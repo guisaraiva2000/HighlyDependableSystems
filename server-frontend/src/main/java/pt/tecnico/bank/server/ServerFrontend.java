@@ -1,4 +1,4 @@
-package pt.tecnico.bank.server.domain;
+package pt.tecnico.bank.server;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -6,24 +6,24 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import pt.tecnico.bank.server.grpc.Server.*;
 import pt.tecnico.bank.server.grpc.ServerServiceGrpc;
-import pt.tecnico.bank.server.grpc.ServerServiceGrpc.*;
 
 import java.io.Closeable;
 import java.util.concurrent.TimeUnit;
 
+
 public class ServerFrontend implements Closeable {
 
     private final ManagedChannel channel;
-    private final ServerServiceBlockingStub stub;
+    private final ServerServiceGrpc.ServerServiceBlockingStub stub;
 
     public ServerFrontend() {
-         this.channel = ManagedChannelBuilder.forAddress("localhost", 8080)
-                                              .usePlaintext()
-                                              .build();
+        this.channel = ManagedChannelBuilder.forAddress("localhost", 8080)
+                .usePlaintext()
+                .build();
         this.stub = ServerServiceGrpc.newBlockingStub(channel);
     }
 
-    public PingResponse getPingResponse(PingRequest request) {
+    public PingResponse ping(PingRequest request) {
         PingResponse res = null;
         while (res == null) {
             try {
@@ -36,7 +36,7 @@ public class ServerFrontend implements Closeable {
         return res;
     }
 
-    public OpenAccountResponse getOpenAccountResponse(OpenAccountRequest request) {
+    public OpenAccountResponse openAccount(OpenAccountRequest request) {
         OpenAccountResponse res = null;
         while (res == null) {
             try {
@@ -51,7 +51,7 @@ public class ServerFrontend implements Closeable {
         return res;
     }
 
-    public SendAmountResponse getSendAmountResponse(SendAmountRequest request) {
+    public SendAmountResponse sendAmount(SendAmountRequest request) {
         SendAmountResponse res = null;
         while (res == null) {
             try {
@@ -71,7 +71,7 @@ public class ServerFrontend implements Closeable {
         return res;
     }
 
-    public CheckAccountResponse getCheckAccountResponse(CheckAccountRequest request) {
+    public CheckAccountResponse checkAccount(CheckAccountRequest request) {
         CheckAccountResponse res = null;
         while (res == null) {
             try {
@@ -86,7 +86,7 @@ public class ServerFrontend implements Closeable {
         return res;
     }
 
-    public ReceiveAmountResponse getReceiveAmountResponse(ReceiveAmountRequest request) {
+    public ReceiveAmountResponse receiveAmount(ReceiveAmountRequest request) {
         ReceiveAmountResponse res = null;
         while (res == null) {
             try {
@@ -104,7 +104,7 @@ public class ServerFrontend implements Closeable {
         return res;
     }
 
-    public AuditResponse getAuditResponse(AuditRequest request) {
+    public AuditResponse audit(AuditRequest request) {
         AuditResponse res = null;
         while (res == null) {
             try {
