@@ -30,6 +30,17 @@ public class Client {
         this.securityHandler = new SecurityHandler(username, password);
     }
 
+    public String ping() {
+        PingResponse res;
+        try {
+            PingRequest req = PingRequest.newBuilder().setInput("ola").build();
+            res = frontend.ping(req);
+        } catch (StatusRuntimeException e) {
+            return handleError(e);
+        }
+        return ANSI_GREEN + res.getOutput();
+    }
+
     public String open_account(String accountName) {
         try {
             securityHandler.accountExists(accountName);

@@ -6,117 +6,193 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import pt.tecnico.bank.server.grpc.Server.*;
 import pt.tecnico.bank.server.grpc.ServerServiceGrpc;
+import pt.tecnico.bank.server.grpc.ServerServiceGrpc.*;
 
 import java.io.Closeable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 
 public class ServerFrontend implements Closeable {
 
-    private final ManagedChannel channel;
-    private final ServerServiceGrpc.ServerServiceBlockingStub stub;
+    private final List<ManagedChannel> channels;
+    private final List<ServerServiceStub> stubs;
 
     public ServerFrontend() {
-        this.channel = ManagedChannelBuilder.forAddress("localhost", 8080)
-                .usePlaintext()
-                .build();
-        this.stub = ServerServiceGrpc.newBlockingStub(channel);
+        this.stubs = new ArrayList<>();
+        this.channels = new ArrayList<>();
+
+        for (int i = 0; i < 3; i++)
+            createNewChannel(8080 + i);
+    }
+
+    private void createNewChannel(int port) {
+        try {
+            ManagedChannel newChannel = ManagedChannelBuilder.forAddress("localhost", port).usePlaintext().build();
+            this.channels.add(newChannel);
+            this.stubs.add(ServerServiceGrpc.newStub(newChannel));
+        } catch (RuntimeException sre) {
+            System.out.println("ERROR : RecFrontend createNewChannel : Could not create channel\n"
+                    + sre.getMessage());
+        }
     }
 
     public PingResponse ping(PingRequest request) {
-        PingResponse res = null;
-        while (res == null) {
+        boolean res = false;
+        ResponseCollector resCol = null;
+        while (!res) {
             try {
-                res = stub.withDeadlineAfter(2, TimeUnit.SECONDS)
-                        .ping(PingRequest.newBuilder().setInput(request.getInput()).build());
+                resCol = new ResponseCollector();
+                CountDownLatch finishLatch = new CountDownLatch(3);
+
+                for (ServerServiceStub stub : this.stubs)
+                    stub.withDeadlineAfter(2, TimeUnit.SECONDS)
+                            .ping(request, new ServerObserver<>(resCol, finishLatch, stub.getChannel().authority()));
+
+                res = true;
+                finishLatch.await();
             } catch (StatusRuntimeException sre) {
                 exceptionHandler(sre);
+            } catch (InterruptedException e) {
+                System.out.println("Error: " + e);
             }
         }
-        return res;
+
+        checkServerStatus(resCol);
+
+        return (PingResponse) resCol.responses.get(0);
     }
 
     public OpenAccountResponse openAccount(OpenAccountRequest request) {
-        OpenAccountResponse res = null;
-        while (res == null) {
+        boolean res = false;
+        ResponseCollector resCol = null;
+        while (!res) {
             try {
-                res = stub.withDeadlineAfter(2, TimeUnit.SECONDS)
-                        .openAccount(OpenAccountRequest.newBuilder()
-                                .setPublicKey(request.getPublicKey())
-                                .setSignature(request.getSignature()).build());
+                resCol = new ResponseCollector();
+                CountDownLatch finishLatch = new CountDownLatch(3);
+
+                for (ServerServiceStub stub : this.stubs)
+                    stub.withDeadlineAfter(2, TimeUnit.SECONDS)
+                        .openAccount(request, new ServerObserver<>(resCol, finishLatch, stub.getChannel().authority()));
+
+                res = true;
+                finishLatch.await();
             } catch (StatusRuntimeException sre) {
                 exceptionHandler(sre);
+            } catch (InterruptedException e) {
+                System.out.println("Error: " + e);
             }
         }
-        return res;
+
+        checkServerStatus(resCol);
+
+        return (OpenAccountResponse) resCol.responses.get(0);
     }
 
     public SendAmountResponse sendAmount(SendAmountRequest request) {
-        SendAmountResponse res = null;
-        while (res == null) {
+        boolean res = false;
+        ResponseCollector resCol = null;
+        while (!res) {
             try {
-                res = stub.withDeadlineAfter(2, TimeUnit.SECONDS)
-                        .sendAmount(SendAmountRequest.newBuilder()
-                                .setAmount(request.getAmount())
-                                .setSourceKey(request.getSourceKey())
-                                .setDestinationKey(request.getDestinationKey())
-                                .setSignature(request.getSignature())
-                                .setNonce(request.getNonce())
-                                .setTimestamp(request.getTimestamp())
-                                .build());
+                resCol = new ResponseCollector();
+                CountDownLatch finishLatch = new CountDownLatch(3);
+
+                for (ServerServiceStub stub : this.stubs)
+                    stub.withDeadlineAfter(2, TimeUnit.SECONDS)
+                        .sendAmount(request, new ServerObserver<>(resCol, finishLatch, stub.getChannel().authority()));
+
+                res = true;
+                finishLatch.await();
             } catch (StatusRuntimeException sre) {
                 exceptionHandler(sre);
+            } catch (InterruptedException e) {
+                System.out.println("Error: " + e);
             }
         }
-        return res;
+
+        checkServerStatus(resCol);
+
+        return (SendAmountResponse) resCol.responses.get(0);
     }
 
     public CheckAccountResponse checkAccount(CheckAccountRequest request) {
-        CheckAccountResponse res = null;
-        while (res == null) {
+        boolean res = false;
+        ResponseCollector resCol = null;
+        while (!res) {
             try {
-                res = stub.withDeadlineAfter(2, TimeUnit.SECONDS)
-                        .checkAccount(CheckAccountRequest.newBuilder()
-                                .setPublicKey(request.getPublicKey())
-                                .build());
+                resCol = new ResponseCollector();
+                CountDownLatch finishLatch = new CountDownLatch(3);
+
+                for (ServerServiceStub stub : this.stubs)
+                    stub.withDeadlineAfter(2, TimeUnit.SECONDS)
+                        .checkAccount(request, new ServerObserver<>(resCol, finishLatch, stub.getChannel().authority()));
+
+                res = true;
+                finishLatch.await();
             } catch (StatusRuntimeException sre) {
                 exceptionHandler(sre);
+            } catch (InterruptedException e) {
+                System.out.println("Error: " + e);
             }
         }
-        return res;
+
+        checkServerStatus(resCol);
+
+        return (CheckAccountResponse) resCol.responses.get(0);
     }
 
     public ReceiveAmountResponse receiveAmount(ReceiveAmountRequest request) {
-        ReceiveAmountResponse res = null;
-        while (res == null) {
+        boolean res = false;
+        ResponseCollector resCol = null;
+        while (!res) {
             try {
-                res = stub.withDeadlineAfter(2, TimeUnit.SECONDS)
-                        .receiveAmount(ReceiveAmountRequest.newBuilder()
-                                .setPublicKey(request.getPublicKey())
-                                .setSignature(request.getSignature())
-                                .setNonce(request.getNonce())
-                                .setTimestamp(request.getTimestamp())
-                                .build());
+                resCol = new ResponseCollector();
+                CountDownLatch finishLatch = new CountDownLatch(3);
+
+                for (ServerServiceStub stub : this.stubs)
+                    stub.withDeadlineAfter(2, TimeUnit.SECONDS)
+                        .receiveAmount(request, new ServerObserver<>(resCol, finishLatch, stub.getChannel().authority()));
+
+                res = true;
+                finishLatch.await();
             } catch (StatusRuntimeException sre) {
                 exceptionHandler(sre);
+            } catch (InterruptedException e) {
+                System.out.println("Error: " + e);
             }
         }
-        return res;
+
+        checkServerStatus(resCol);
+
+        return (ReceiveAmountResponse) resCol.responses.get(0);
     }
 
     public AuditResponse audit(AuditRequest request) {
-        AuditResponse res = null;
-        while (res == null) {
+        boolean res = false;
+        ResponseCollector resCol = null;
+        while (!res) {
             try {
-                res = stub.withDeadlineAfter(2, TimeUnit.SECONDS)
-                        .audit(AuditRequest.newBuilder()
-                                .setPublicKey(request.getPublicKey())
-                                .build());
+                resCol = new ResponseCollector();
+                CountDownLatch finishLatch = new CountDownLatch(3);
+
+                for (ServerServiceStub stub : this.stubs)
+                    stub.withDeadlineAfter(2, TimeUnit.SECONDS)
+                        .audit(request, new ServerObserver<>(resCol, finishLatch, stub.getChannel().authority()));
+
+                res = true;
+                finishLatch.await();
             } catch (StatusRuntimeException sre) {
                 exceptionHandler(sre);
+            } catch (InterruptedException e) {
+                System.out.println("Error: " + e);
             }
         }
-        return res;
+
+        checkServerStatus(resCol);
+
+        return (AuditResponse) resCol.responses.get(0);
     }
 
     // aux
@@ -127,8 +203,13 @@ public class ServerFrontend implements Closeable {
         System.out.println("Resending...");
     }
 
+    private void checkServerStatus(ResponseCollector resCol) {
+        if(resCol.responses.isEmpty())  // server down
+            throw new StatusRuntimeException(Status.NOT_FOUND.augmentDescription("io exception"));
+    }
+
     @Override
     public final void close() {
-        channel.shutdown();
+        this.channels.forEach(ManagedChannel::shutdown);
     }
 }

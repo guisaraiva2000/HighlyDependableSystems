@@ -25,8 +25,8 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
 
     private final Server server;
 
-    public ServerServiceImpl() {
-        this.server = new Server();
+    public ServerServiceImpl(int id) {
+        this.server = new Server(id);
     }
 
     @Override

@@ -23,16 +23,19 @@ import java.util.stream.Collectors;
 public class Server implements Serializable {
 
     private final HashMap<PublicKey, User> users;
-    private final StateManager stateManager = new StateManager();
-    private final SecurityHandler securityHandler = new SecurityHandler();
+    private final StateManager stateManager;
+    private final SecurityHandler securityHandler;
 
-    public Server() {
+    public Server(int id) {
+        stateManager = new StateManager(id);
+        securityHandler = new SecurityHandler();
         users = stateManager.loadState();
     }
 
     public synchronized String[] openAccount(ByteString pubKey, ByteString signature)
             throws AccountAlreadyExistsException, IOException, NoSuchAlgorithmException, InvalidKeySpecException,
-            UnrecoverableKeyException, CertificateException, KeyStoreException, SignatureException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, SignatureNotValidException {
+            UnrecoverableKeyException, CertificateException, KeyStoreException, SignatureException, InvalidKeyException,
+            IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, SignatureNotValidException {
         PublicKey pubKeyBytes = securityHandler.keyToBytes(pubKey);
         byte[] sig = new byte[256];
         signature.copyTo(sig, 0);
@@ -96,7 +99,8 @@ public class Server implements Serializable {
     }
 
     public synchronized String[] checkAccount(ByteString checkKey) throws AccountDoesNotExistsException,
-            NoSuchAlgorithmException, InvalidKeySpecException, UnrecoverableKeyException, CertificateException, KeyStoreException, IOException, SignatureException, InvalidKeyException {
+            NoSuchAlgorithmException, InvalidKeySpecException, UnrecoverableKeyException, CertificateException,
+            KeyStoreException, IOException, SignatureException, InvalidKeyException {
         PublicKey pubKeyBytes = securityHandler.keyToBytes(checkKey);
 
         if (!(users.containsKey(pubKeyBytes)))

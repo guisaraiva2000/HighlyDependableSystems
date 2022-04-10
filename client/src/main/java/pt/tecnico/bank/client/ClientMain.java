@@ -106,6 +106,9 @@ public class ClientMain {
                                 System.err.println(ANSI_RED + "ERROR: Usage: audit %account_name%");
                             }
                             break;
+                        case "ping":
+                            System.out.println(client.ping());
+                            break;
                         case "quit":
                             loggedIn = false;
                             username = "";
