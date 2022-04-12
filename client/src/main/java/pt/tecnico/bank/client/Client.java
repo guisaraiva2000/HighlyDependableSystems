@@ -13,6 +13,7 @@ import pt.tecnico.bank.server.grpc.Server.*;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.reflect.Executable;
 import java.security.*;
 import java.security.cert.CertificateException;
 
@@ -59,15 +60,20 @@ public class Client {
 
             boolean ack = res.getAck();
             ByteString keyString = res.getPublicKey();
+            String exception = res.getException();
+
             byte[] key = new byte[698];
             keyString.copyTo(key, 0);
             byte[] newSignature = new byte[256];
             res.getSignature().copyTo(newSignature, 0);
 
-            String message = ack + pubKey.toString();
+            String message = ack + pubKey.toString() + exception;
 
             if (!securityHandler.validateResponse(securityHandler.getPublicKey("server"), message, newSignature))
                 return mimWarn();
+
+            if(!ack)
+                return exception;
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -108,14 +114,19 @@ public class Client {
             long newTimestamp = response.getNewTimestamp();
             long newNonce = response.getNonce();
             ByteString sig = response.getSignature();
+            String exception = response.getException();
+
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature, 0);
 
-            String newMessage = ack + origKey.toString() + newNonce + timestamp + newTimestamp;
+            String newMessage = ack + origKey.toString() + newNonce + timestamp + newTimestamp + exception;
 
             if (!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
                     ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce))
                 return mimWarn();
+
+            if(!ack)
+                return exception;
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -137,21 +148,27 @@ public class Client {
                     .build();
             CheckAccountResponse res = frontend.checkAccount(req);
 
+            boolean ack = res.getAck();
             balance = res.getBalance();
             pendentAmount = res.getPendentAmount();
             transfers = res.getPendentTransfers();
             long newTimestamp = res.getNewTimestamp();
             ByteString sig = res.getSignature();
+            String exception = res.getException();
+
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature, 0);
 
-            String newMessage = String.valueOf(balance) + pendentAmount + transfers + newTimestamp;
+            String newMessage = String.valueOf(balance) + pendentAmount + transfers + newTimestamp + exception;
 
             long timeValidity = System.currentTimeMillis() / 1000 - newTimestamp;
 
             if (!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature)
                     && timeValidity <= VALIDITY_INTERVAL))
                 return mimWarn();
+            
+            if(!ack)
+                return exception;
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -185,19 +202,25 @@ public class Client {
                     .build();
             ReceiveAmountResponse response = frontend.receiveAmount(req);
 
+            boolean ack = response.getAck();
             recvAmount = response.getRecvAmount();
             long recvTimestamp = response.getRecvTimestamp();
             long newTimestamp = response.getNewTimestamp();
             long newNonce = response.getNonce();
             ByteString sig = response.getSignature();
+            String exception = response.getException();
+
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature, 0);
 
-            String newMessage = recvAmount + key.toString() + newNonce + timestamp + newTimestamp;
+            String newMessage = recvAmount + key.toString() + newNonce + timestamp + newTimestamp + exception;
 
             if (!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
                     recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce))
                 return mimWarn();
+            
+            if(!ack)
+                return exception;
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -217,18 +240,24 @@ public class Client {
                     .build();
             AuditResponse res = frontend.audit(req);
 
+            boolean ack = res.getAck();
             transfers = res.getTransferHistory();
             long newTimestamp = res.getNewTimestamp();
             ByteString sig = res.getSignature();
+            String exception = res.getException();
+
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature, 0);
 
             long timeValidity = System.currentTimeMillis() / 1000 - newTimestamp;
-            String newMessage = transfers + newTimestamp;
+            String newMessage = transfers + newTimestamp + exception;
 
             if (!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature)
                     && timeValidity <= VALIDITY_INTERVAL))
                 return mimWarn();
+
+            if(!ack)
+                return exception;
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -236,6 +265,8 @@ public class Client {
                 | InvalidKeyException | SignatureException e) {
             return ANSI_RED + e.getMessage();
         }
+
+
         return ANSI_GREEN + "Total transfers: " + transfers.replaceAll("-", "\n\t-");
     }
 

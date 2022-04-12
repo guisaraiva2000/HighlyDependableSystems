@@ -21,6 +21,7 @@ message OpenAccountResponse {
   bool ack = 1;
   bytes public_key = 2;
   bytes signature = 3;
+  string exception = 4;
 }
 
 message SendAmountRequest {
@@ -39,6 +40,7 @@ message SendAmountResponse {
   int64 recv_timestamp = 4;
   int64 new_timestamp = 5;
   bytes signature = 6;
+  string exception = 7;
 }
 
 message CheckAccountRequest {
@@ -47,11 +49,13 @@ message CheckAccountRequest {
 }
 
 message CheckAccountResponse {
-  int32 balance = 1;
-  int32 pendent_amount = 2;
-  string pendent_transfers = 3;
-  int64 new_timestamp = 4;
-  bytes signature = 5;
+  bool ack = 1;
+  int32 balance = 2;
+  int32 pendent_amount = 3;
+  string pendent_transfers = 4;
+  int64 new_timestamp = 5;
+  bytes signature = 6;
+  string exception = 7;
 }
 
 message ReceiveAmountRequest {
@@ -62,12 +66,14 @@ message ReceiveAmountRequest {
 }
 
 message ReceiveAmountResponse {
-  int32 recv_amount = 1;
-  string public_key = 2;
-  int64 nonce = 3;
-  int64 recv_timestamp = 4;
-  int64 new_timestamp = 5;
-  bytes signature = 6;
+  bool ack = 1;
+  int32 recv_amount = 2;
+  string public_key = 3;
+  int64 nonce = 4;
+  int64 recv_timestamp = 5;
+  int64 new_timestamp = 6;
+  bytes signature = 7;
+  string exception = 8;
 }
 
 message AuditRequest {
@@ -76,9 +82,11 @@ message AuditRequest {
 }
 
 message AuditResponse {
-  string transfer_history = 1;
-  int64 new_timestamp = 2;
-  bytes signature = 3;
+  bool ack = 1;
+  string transfer_history = 2;
+  int64 new_timestamp = 3;
+  bytes signature = 4;
+  string exception = 5;
 }
 
 service ServerService {

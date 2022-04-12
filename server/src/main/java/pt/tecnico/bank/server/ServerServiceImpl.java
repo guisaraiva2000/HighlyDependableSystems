@@ -50,14 +50,17 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             String[] r = server.openAccount(request.getPublicKey(), request.getSignature());
 
             boolean ack = Objects.equals(r[0], "true");
+
             byte[] pubKey = r[1].getBytes(StandardCharsets.ISO_8859_1);
             byte[] signature = r[2].getBytes(StandardCharsets.ISO_8859_1);
 
-
             OpenAccountResponse response = OpenAccountResponse.newBuilder().setAck(ack)
-                                                                            .setPublicKey(ByteString.copyFrom(pubKey))
-                                                                            .setSignature(ByteString.copyFrom(signature))
-                                                                            .build();
+                                                        .setPublicKey(ByteString.copyFrom(pubKey))
+                                                        .setSignature(ByteString.copyFrom(signature))
+                                                        .setException(r[3])
+                                                        .build();
+            
+            
             responseObserver.onNext(response);
             responseObserver.onCompleted();
 
@@ -115,13 +118,15 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void checkAccount(CheckAccountRequest request, StreamObserver<CheckAccountResponse> responseObserver) {
         try {
             String[] r = server.checkAccount(request.getPublicKey());
-            long newTimestamp = Long.parseLong(r[3]);
-            byte[] signature = r[4].getBytes(StandardCharsets.ISO_8859_1);
+            boolean ack = Objects.equals(r[0], "true");
+            long newTimestamp = Long.parseLong(r[4]);
+            byte[] signature = r[5].getBytes(StandardCharsets.ISO_8859_1);
 
             CheckAccountResponse response = CheckAccountResponse.newBuilder()
-                                                                .setBalance(Integer.parseInt(r[0]))
-                                                                .setPendentAmount(Integer.parseInt(r[1]))
-                                                                .setPendentTransfers(r[2])
+                                                                .setAck(ack)
+                                                                .setBalance(Integer.parseInt(r[1]))
+                                                                .setPendentAmount(Integer.parseInt(r[2]))
+                                                                .setPendentTransfers(r[3])
                                                                 .setNewTimestamp(newTimestamp)
                                                                 .setSignature(ByteString.copyFrom(signature))
                                                                 .build();
@@ -142,15 +147,18 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
 
             String[] r = server.receiveAmount(request.getPublicKey(), request.getSignature(), request.getNonce(), request.getTimestamp());
 
-            int recvAmount = Integer.parseInt(r[0]);
-            long nonce = Long.parseLong(r[2]);
-            long recvTimestamp = Long.parseLong(r[3]);
-            long newTimestamp = Long.parseLong(r[4]);
-            byte[] signature = r[5].getBytes(StandardCharsets.ISO_8859_1);
+            boolean ack = Objects.equals(r[0], "true");
+
+            int recvAmount = Integer.parseInt(r[1]);
+            long nonce = Long.parseLong(r[3]);
+            long recvTimestamp = Long.parseLong(r[4]);
+            long newTimestamp = Long.parseLong(r[5]);
+            byte[] signature = r[6].getBytes(StandardCharsets.ISO_8859_1);
 
             ReceiveAmountResponse response = ReceiveAmountResponse.newBuilder()
+                                                                    .setAck(ack)
                                                                     .setRecvAmount(recvAmount)
-                                                                    .setPublicKey(r[1])
+                                                                    .setPublicKey(r[2])
                                                                     .setNonce(nonce)
                                                                     .setRecvTimestamp(recvTimestamp)
                                                                     .setNewTimestamp(newTimestamp)
@@ -175,10 +183,15 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void audit(AuditRequest request, StreamObserver<AuditResponse> responseObserver) {
         try {
             String[] r = server.audit(request.getPublicKey());
-            long newTimestamp = Long.parseLong(r[1]);
-            byte[] signature = r[2].getBytes(StandardCharsets.ISO_8859_1);
 
-            AuditResponse response = AuditResponse.newBuilder().setTransferHistory(r[0])
+            boolean ack = Objects.equals(r[0], "true");
+
+            long newTimestamp = Long.parseLong(r[2]);
+            byte[] signature = r[3].getBytes(StandardCharsets.ISO_8859_1);
+
+            AuditResponse response = AuditResponse.newBuilder()
+                                                                .setAck(ack)
+                                                                .setTransferHistory(r[1])
                                                                 .setNewTimestamp(newTimestamp)
                                                                 .setSignature(ByteString.copyFrom(signature))
                                                                 .build();
