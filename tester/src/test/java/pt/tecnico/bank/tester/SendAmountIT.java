@@ -21,7 +21,7 @@ public class SendAmountIT extends RunListener {
 
     @BeforeEach
     public void setUp() {
-        frontend = new ServerFrontend();
+        frontend = new ServerFrontend(1);
         client = new Client(frontend, "user_tester", "test");
     }
 

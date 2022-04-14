@@ -4,16 +4,14 @@ import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
 import org.bouncycastle.operator.OperatorCreationException;
 import pt.tecnico.bank.client.exceptions.AccountAlreadyExistsException;
-import pt.tecnico.bank.client.exceptions.AccountDoesNotExistsException;
 import pt.tecnico.bank.client.exceptions.InvalidAmountException;
-import pt.tecnico.bank.client.exceptions.UnauthorizedOperationException;
-import pt.tecnico.bank.client.handlers.SecurityHandler;
+import pt.tecnico.bank.crypto.Crypto;
+import pt.tecnico.bank.crypto.exceptions.AccountDoesNotExistsException;
 import pt.tecnico.bank.server.ServerFrontend;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.lang.reflect.Executable;
 import java.security.*;
 import java.security.cert.CertificateException;
 
@@ -23,12 +21,12 @@ public class Client {
     public final String ANSI_RED = "\033[0;31m";
 
     private final ServerFrontend frontend;
-    private final SecurityHandler securityHandler;
+    private final Crypto crypto;
     private final int VALIDITY_INTERVAL = 60 * 10;
 
     public Client(ServerFrontend frontend, String username, String password) {
         this.frontend = frontend;
-        this.securityHandler = new SecurityHandler(username, password);
+        this.crypto = new Crypto(username, password, true);
     }
 
     public String ping() {
@@ -44,12 +42,13 @@ public class Client {
 
     public String open_account(String accountName) {
         try {
-            securityHandler.accountExists(accountName);
+            if (crypto.accountExists(accountName))
+                throw new AccountAlreadyExistsException();
 
-            Key pubKey = securityHandler.getKey(accountName);
+            Key pubKey = crypto.getKey(accountName);
             byte[] encoded = pubKey.getEncoded();
 
-            byte[] signature = securityHandler.encrypt(accountName, pubKey.toString());
+            byte[] signature = crypto.encrypt(accountName, pubKey.toString());
 
             OpenAccountRequest req = OpenAccountRequest.newBuilder()
                     .setPublicKey(ByteString.copyFrom(encoded))
@@ -60,26 +59,22 @@ public class Client {
 
             boolean ack = res.getAck();
             ByteString keyString = res.getPublicKey();
-            String exception = res.getException();
-
             byte[] key = new byte[698];
             keyString.copyTo(key, 0);
             byte[] newSignature = new byte[256];
             res.getSignature().copyTo(newSignature, 0);
 
-            String message = ack + pubKey.toString() + exception;
+            String message = ack + pubKey.toString();
 
-            if (!securityHandler.validateResponse(securityHandler.getPublicKey("server"), message, newSignature))
-                return mimWarn();
-
-            if(!ack)
-                return exception;
+           /* if (!crypto.validateMessage(crypto.getPublicKey(), message, newSignature))
+                return mimWarn();*/
 
         } catch (StatusRuntimeException e) {
+            e.printStackTrace();
             return handleError(e);
         } catch (CertificateException | NoSuchAlgorithmException | KeyStoreException | IOException | AccountAlreadyExistsException
-                | UnrecoverableKeyException | SignatureException | InvalidKeyException | AccountDoesNotExistsException
-                | OperatorCreationException | UnauthorizedOperationException e) {
+                | UnrecoverableKeyException | SignatureException | InvalidKeyException | OperatorCreationException e) {
+            e.printStackTrace();
             return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Account with name " + accountName + " created";
@@ -92,12 +87,12 @@ public class Client {
             long nonce = new SecureRandom().nextLong();
             long timestamp = System.currentTimeMillis() / 1000;
 
-            PublicKey origKey = securityHandler.getPublicKey(senderAccount);
-            PublicKey destKey = securityHandler.getPublicKey(receiverAccount);
+            PublicKey origKey = crypto.getPublicKey(senderAccount);
+            PublicKey destKey = crypto.getPublicKey(receiverAccount);
 
             String message = origKey.toString() + destKey.toString() + amount + nonce + timestamp;
 
-            byte[] signature = securityHandler.encrypt(senderAccount, message);
+            byte[] signature = crypto.encrypt(senderAccount, message);
 
             // send encrypted message instead of clear message
             SendAmountRequest req = SendAmountRequest.newBuilder().setSourceKey(ByteString.copyFrom(origKey.getEncoded()))
@@ -114,25 +109,19 @@ public class Client {
             long newTimestamp = response.getNewTimestamp();
             long newNonce = response.getNonce();
             ByteString sig = response.getSignature();
-            String exception = response.getException();
-
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature, 0);
 
-            String newMessage = ack + origKey.toString() + newNonce + timestamp + newTimestamp + exception;
+            String newMessage = ack + origKey.toString() + newNonce + timestamp + newTimestamp;
 
-            if (!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
+            /*if (!(crypto.validateMessage(crypto.getPublicKey(), newMessage, newSignature) &&
                     ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce))
-                return mimWarn();
-
-            if(!ack)
-                return exception;
+                return mimWarn();*/
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
         } catch (AccountDoesNotExistsException | CertificateException | SignatureException | NoSuchAlgorithmException
-                | InvalidKeyException | IOException | KeyStoreException | UnrecoverableKeyException
-                | UnauthorizedOperationException | InvalidAmountException e) {
+                | InvalidKeyException | IOException | KeyStoreException | UnrecoverableKeyException | InvalidAmountException e) {
             return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Sent " + amount + " from " + senderAccount + " to " + receiverAccount;
@@ -143,37 +132,30 @@ public class Client {
         String transfers;
 
         try {
-            PublicKey key = securityHandler.getPublicKey(checkAccountName);
+            PublicKey key = crypto.getPublicKey(checkAccountName);
             CheckAccountRequest req = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded()))
                     .build();
             CheckAccountResponse res = frontend.checkAccount(req);
 
-            boolean ack = res.getAck();
             balance = res.getBalance();
             pendentAmount = res.getPendentAmount();
             transfers = res.getPendentTransfers();
             long newTimestamp = res.getNewTimestamp();
             ByteString sig = res.getSignature();
-            String exception = res.getException();
-
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature, 0);
 
-            String newMessage = String.valueOf(balance) + pendentAmount + transfers + newTimestamp + exception;
+            String newMessage = String.valueOf(balance) + pendentAmount + transfers + newTimestamp;
 
             long timeValidity = System.currentTimeMillis() / 1000 - newTimestamp;
 
-            if (!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature)
+            /*if (!(crypto.validateResponse(crypto.getPublicKey("server"), newMessage, newSignature)
                     && timeValidity <= VALIDITY_INTERVAL))
-                return mimWarn();
-            
-            if(!ack)
-                return exception;
+                return mimWarn();*/
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
-        } catch (FileNotFoundException | CertificateException | AccountDoesNotExistsException | NoSuchAlgorithmException
-                | InvalidKeyException | SignatureException e) {
+        } catch (FileNotFoundException | CertificateException | AccountDoesNotExistsException e) {
             return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Account Status:\n\t" +
@@ -188,11 +170,11 @@ public class Client {
             long nonce = new SecureRandom().nextLong();
             long timestamp = System.currentTimeMillis() / 1000;
 
-            PublicKey key = securityHandler.getPublicKey(accountName);
+            PublicKey key = crypto.getPublicKey(accountName);
 
             String message = key.toString() + nonce + timestamp;
 
-            byte[] signature = securityHandler.encrypt(accountName, message);
+            byte[] signature = crypto.encrypt(accountName, message);
 
             ReceiveAmountRequest req = ReceiveAmountRequest.newBuilder()
                     .setPublicKey(ByteString.copyFrom(key.getEncoded()))
@@ -202,30 +184,24 @@ public class Client {
                     .build();
             ReceiveAmountResponse response = frontend.receiveAmount(req);
 
-            boolean ack = response.getAck();
             recvAmount = response.getRecvAmount();
             long recvTimestamp = response.getRecvTimestamp();
             long newTimestamp = response.getNewTimestamp();
             long newNonce = response.getNonce();
             ByteString sig = response.getSignature();
-            String exception = response.getException();
-
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature, 0);
 
-            String newMessage = recvAmount + key.toString() + newNonce + timestamp + newTimestamp + exception;
+            String newMessage = recvAmount + key.toString() + newNonce + timestamp + newTimestamp;
 
-            if (!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature) &&
+            /*if (!(crypto.validateResponse(crypto.getPublicKey("server"), newMessage, newSignature) &&
                     recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce))
-                return mimWarn();
-            
-            if(!ack)
-                return exception;
+                return mimWarn();*/
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
         } catch (CertificateException | AccountDoesNotExistsException | SignatureException | NoSuchAlgorithmException
-                | InvalidKeyException | IOException | KeyStoreException | UnrecoverableKeyException | UnauthorizedOperationException e) {
+                | InvalidKeyException | IOException | KeyStoreException | UnrecoverableKeyException e) {
             return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Amount deposited to your account: " + recvAmount;
@@ -234,39 +210,30 @@ public class Client {
     public String audit(String checkAccountName) {
         String transfers;
         try {
-            PublicKey key = securityHandler.getPublicKey(checkAccountName);
+            PublicKey key = crypto.getPublicKey(checkAccountName);
 
             AuditRequest req = AuditRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded()))
                     .build();
             AuditResponse res = frontend.audit(req);
 
-            boolean ack = res.getAck();
             transfers = res.getTransferHistory();
             long newTimestamp = res.getNewTimestamp();
             ByteString sig = res.getSignature();
-            String exception = res.getException();
-
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature, 0);
 
             long timeValidity = System.currentTimeMillis() / 1000 - newTimestamp;
-            String newMessage = transfers + newTimestamp + exception;
+            String newMessage = transfers + newTimestamp;
 
-            if (!(securityHandler.validateResponse(securityHandler.getPublicKey("server"), newMessage, newSignature)
+            /*if (!(crypto.validateResponse(crypto.getPublicKey("server"), newMessage, newSignature)
                     && timeValidity <= VALIDITY_INTERVAL))
-                return mimWarn();
-
-            if(!ack)
-                return exception;
+                return mimWarn();*/
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
-        } catch (FileNotFoundException | CertificateException | AccountDoesNotExistsException | NoSuchAlgorithmException
-                | InvalidKeyException | SignatureException e) {
+        } catch (FileNotFoundException | CertificateException | AccountDoesNotExistsException e) {
             return ANSI_RED + e.getMessage();
         }
-
-
         return ANSI_GREEN + "Total transfers: " + transfers.replaceAll("-", "\n\t-");
     }
 

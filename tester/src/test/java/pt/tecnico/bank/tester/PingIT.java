@@ -16,7 +16,7 @@ public class PingIT {
 
     @BeforeEach
     public void setUp() {
-        frontend = new ServerFrontend();
+        frontend = new ServerFrontend(1);
     }
 
     @AfterEach

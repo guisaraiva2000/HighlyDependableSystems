@@ -4,25 +4,24 @@ import io.grpc.StatusRuntimeException;
 import pt.tecnico.bank.server.ServerFrontend;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Scanner;
 
 public class ClientMain {
 
-    private final static String USER_PATH = System.getProperty("user.dir") + File.separator + "CLIENTS" + File.separator + "users.txt";
-    private static String username = "";
-    private static String password = "";
     public static void main(String[] args) {
 
         System.out.println(ClientMain.class.getSimpleName());
+
+        int nByzantineServers = Integer.parseInt(args[0]);
+        String userPath = args[1];
 
         ServerFrontend frontend;
         Client client;
 
         try {
-            frontend = new ServerFrontend();
+            frontend = new ServerFrontend(nByzantineServers);
         } catch (Exception e) {
             System.out.println("Caught exception with description: " + e.getMessage());
             return;
@@ -46,7 +45,9 @@ public class ClientMain {
 
                 if (input.equals("")) break;
 
-                readUserData(input);
+                String[] res = readUserData(userPath, input);
+                String username = res[0];
+                String password = res[1];
 
                 System.out.print("Password: ");
                 System.out.flush();
@@ -130,8 +131,9 @@ public class ClientMain {
         }
     }
 
-    private static void readUserData(String input) throws IOException {
-        BufferedReader reader = new BufferedReader(new FileReader(USER_PATH));
+    private static String[] readUserData(String userPath, String input) throws IOException {
+        BufferedReader reader = new BufferedReader(new FileReader(userPath));
+        String username = null, password = null;
         String line = reader.readLine();
         while (line != null) {
             String[] data = line.split(":");
@@ -143,6 +145,7 @@ public class ClientMain {
             line = reader.readLine();
         }
         reader.close();
+        return new String[]{ username, password };
     }
 
     private static void displayCommands() {

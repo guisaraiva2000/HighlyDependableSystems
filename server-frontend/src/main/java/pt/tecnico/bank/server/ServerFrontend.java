@@ -19,12 +19,14 @@ public class ServerFrontend implements Closeable {
 
     private final List<ManagedChannel> channels;
     private final List<ServerServiceStub> stubs;
+    private final int byzantineQuorum;
 
-    public ServerFrontend() {
+    public ServerFrontend(int nByzantineServers) {
         this.stubs = new ArrayList<>();
         this.channels = new ArrayList<>();
+        this.byzantineQuorum = 2 * nByzantineServers + 1;
 
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < 3 * nByzantineServers + 1; i++)
             createNewChannel(8080 + i);
     }
 
@@ -45,7 +47,7 @@ public class ServerFrontend implements Closeable {
         while (!res) {
             try {
                 resCol = new ResponseCollector();
-                CountDownLatch finishLatch = new CountDownLatch(3);
+                CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
                 for (ServerServiceStub stub : this.stubs)
                     stub.withDeadlineAfter(2, TimeUnit.SECONDS)
@@ -71,7 +73,7 @@ public class ServerFrontend implements Closeable {
         while (!res) {
             try {
                 resCol = new ResponseCollector();
-                CountDownLatch finishLatch = new CountDownLatch(3);
+                CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
                 for (ServerServiceStub stub : this.stubs)
                     stub.withDeadlineAfter(2, TimeUnit.SECONDS)
@@ -97,7 +99,7 @@ public class ServerFrontend implements Closeable {
         while (!res) {
             try {
                 resCol = new ResponseCollector();
-                CountDownLatch finishLatch = new CountDownLatch(3);
+                CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
                 for (ServerServiceStub stub : this.stubs)
                     stub.withDeadlineAfter(2, TimeUnit.SECONDS)
@@ -123,7 +125,7 @@ public class ServerFrontend implements Closeable {
         while (!res) {
             try {
                 resCol = new ResponseCollector();
-                CountDownLatch finishLatch = new CountDownLatch(3);
+                CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
                 for (ServerServiceStub stub : this.stubs)
                     stub.withDeadlineAfter(2, TimeUnit.SECONDS)
@@ -149,7 +151,7 @@ public class ServerFrontend implements Closeable {
         while (!res) {
             try {
                 resCol = new ResponseCollector();
-                CountDownLatch finishLatch = new CountDownLatch(3);
+                CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
                 for (ServerServiceStub stub : this.stubs)
                     stub.withDeadlineAfter(2, TimeUnit.SECONDS)
@@ -175,7 +177,7 @@ public class ServerFrontend implements Closeable {
         while (!res) {
             try {
                 resCol = new ResponseCollector();
-                CountDownLatch finishLatch = new CountDownLatch(3);
+                CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
                 for (ServerServiceStub stub : this.stubs)
                     stub.withDeadlineAfter(2, TimeUnit.SECONDS)

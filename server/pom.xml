@@ -15,17 +15,12 @@
 
 	<!-- Properties are variables used to customize the behavior of Maven and its plug-ins. -->
 	<properties>
-		<!-- see parent POM for more properties -->
-		<zoo.host>localhost</zoo.host>
-		<zoo.port>2181</zoo.port>
-
-		<!-- instance number -->
-		<instance>1</instance>
-
-		<server.host>localhost</server.host>
-		<server.port>809${instance}</server.port>
-
 		<mainclass>pt.tecnico.bank.server.ServerMain</mainclass>
+
+		<!-- Arguments -->
+		<serverName>Server1</serverName>
+		<serverPort>8080</serverPort>
+		<nByzantineServers>1</nByzantineServers>
 
 	</properties>
 
@@ -50,7 +45,13 @@
 			<artifactId>gson</artifactId>
 			<version>2.9.0</version>
 		</dependency>
-	</dependencies>
+        <dependency>
+            <groupId>pt.tecnico.bank.T09</groupId>
+            <artifactId>crypto</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+    </dependencies>
 
 	<build>
 		<!-- Resources are files like properties, images, etc; used by the module.  -->
@@ -97,11 +98,9 @@
 					<killAfter>-1</killAfter>
 					<mainClass>${mainclass}</mainClass>
 					<arguments>
-						<argument>${zoo.host}</argument>
-						<argument>${zoo.port}</argument>
-						<argument>${server.host}</argument>
-						<argument>${server.port}</argument>
-						<argument>${instance}</argument>
+						<argument>${serverName}</argument>
+						<argument>${serverPort}</argument>
+						<argument>${nByzantineServers}</argument>
 					</arguments>
 				</configuration>
 			</plugin>

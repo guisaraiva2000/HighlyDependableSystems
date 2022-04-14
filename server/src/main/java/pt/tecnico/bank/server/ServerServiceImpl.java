@@ -25,8 +25,8 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
 
     private final Server server;
 
-    public ServerServiceImpl(int id) {
-        this.server = new Server(id);
+    public ServerServiceImpl(String sName, int port, int nByzantineServers) {
+        this.server = new Server(sName, port, nByzantineServers);
     }
 
     @Override
@@ -50,17 +50,14 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             String[] r = server.openAccount(request.getPublicKey(), request.getSignature());
 
             boolean ack = Objects.equals(r[0], "true");
-
             byte[] pubKey = r[1].getBytes(StandardCharsets.ISO_8859_1);
             byte[] signature = r[2].getBytes(StandardCharsets.ISO_8859_1);
 
+
             OpenAccountResponse response = OpenAccountResponse.newBuilder().setAck(ack)
-                                                        .setPublicKey(ByteString.copyFrom(pubKey))
-                                                        .setSignature(ByteString.copyFrom(signature))
-                                                        .setException(r[3])
-                                                        .build();
-            
-            
+                    .setPublicKey(ByteString.copyFrom(pubKey))
+                    .setSignature(ByteString.copyFrom(signature))
+                    .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
 
@@ -79,7 +76,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
         try {
             String[] r = server.sendAmount(request.getSourceKey(), request.getDestinationKey(), request.getAmount(),
                     request.getNonce(), request.getTimestamp(), request.getSignature());
-            
+
             boolean ack = Objects.equals(r[0], "true");
 
             long nonce = Long.parseLong(r[2]);
@@ -88,13 +85,13 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             byte[] signature = r[5].getBytes(StandardCharsets.ISO_8859_1);
 
             SendAmountResponse response = SendAmountResponse.newBuilder()
-                                                            .setAck(ack)
-                                                            .setPublicKey(r[1])
-                                                            .setNonce(nonce)
-                                                            .setRecvTimestamp(recvTimestamp)
-                                                            .setNewTimestamp(newTimestamp)
-                                                            .setSignature(ByteString.copyFrom(signature))
-                                                            .build();
+                    .setAck(ack)
+                    .setPublicKey(r[1])
+                    .setNonce(nonce)
+                    .setRecvTimestamp(recvTimestamp)
+                    .setNewTimestamp(newTimestamp)
+                    .setSignature(ByteString.copyFrom(signature))
+                    .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (AccountDoesNotExistsException e) {
@@ -118,18 +115,16 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void checkAccount(CheckAccountRequest request, StreamObserver<CheckAccountResponse> responseObserver) {
         try {
             String[] r = server.checkAccount(request.getPublicKey());
-            boolean ack = Objects.equals(r[0], "true");
-            long newTimestamp = Long.parseLong(r[4]);
-            byte[] signature = r[5].getBytes(StandardCharsets.ISO_8859_1);
+            long newTimestamp = Long.parseLong(r[3]);
+            byte[] signature = r[4].getBytes(StandardCharsets.ISO_8859_1);
 
             CheckAccountResponse response = CheckAccountResponse.newBuilder()
-                                                                .setAck(ack)
-                                                                .setBalance(Integer.parseInt(r[1]))
-                                                                .setPendentAmount(Integer.parseInt(r[2]))
-                                                                .setPendentTransfers(r[3])
-                                                                .setNewTimestamp(newTimestamp)
-                                                                .setSignature(ByteString.copyFrom(signature))
-                                                                .build();
+                    .setBalance(Integer.parseInt(r[0]))
+                    .setPendentAmount(Integer.parseInt(r[1]))
+                    .setPendentTransfers(r[2])
+                    .setNewTimestamp(newTimestamp)
+                    .setSignature(ByteString.copyFrom(signature))
+                    .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (AccountDoesNotExistsException e) {
@@ -147,23 +142,20 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
 
             String[] r = server.receiveAmount(request.getPublicKey(), request.getSignature(), request.getNonce(), request.getTimestamp());
 
-            boolean ack = Objects.equals(r[0], "true");
-
-            int recvAmount = Integer.parseInt(r[1]);
-            long nonce = Long.parseLong(r[3]);
-            long recvTimestamp = Long.parseLong(r[4]);
-            long newTimestamp = Long.parseLong(r[5]);
-            byte[] signature = r[6].getBytes(StandardCharsets.ISO_8859_1);
+            int recvAmount = Integer.parseInt(r[0]);
+            long nonce = Long.parseLong(r[2]);
+            long recvTimestamp = Long.parseLong(r[3]);
+            long newTimestamp = Long.parseLong(r[4]);
+            byte[] signature = r[5].getBytes(StandardCharsets.ISO_8859_1);
 
             ReceiveAmountResponse response = ReceiveAmountResponse.newBuilder()
-                                                                    .setAck(ack)
-                                                                    .setRecvAmount(recvAmount)
-                                                                    .setPublicKey(r[2])
-                                                                    .setNonce(nonce)
-                                                                    .setRecvTimestamp(recvTimestamp)
-                                                                    .setNewTimestamp(newTimestamp)
-                                                                    .setSignature(ByteString.copyFrom(signature))
-                                                                    .build();
+                    .setRecvAmount(recvAmount)
+                    .setPublicKey(r[1])
+                    .setNonce(nonce)
+                    .setRecvTimestamp(recvTimestamp)
+                    .setNewTimestamp(newTimestamp)
+                    .setSignature(ByteString.copyFrom(signature))
+                    .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (AccountDoesNotExistsException e) {
@@ -183,18 +175,13 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void audit(AuditRequest request, StreamObserver<AuditResponse> responseObserver) {
         try {
             String[] r = server.audit(request.getPublicKey());
+            long newTimestamp = Long.parseLong(r[1]);
+            byte[] signature = r[2].getBytes(StandardCharsets.ISO_8859_1);
 
-            boolean ack = Objects.equals(r[0], "true");
-
-            long newTimestamp = Long.parseLong(r[2]);
-            byte[] signature = r[3].getBytes(StandardCharsets.ISO_8859_1);
-
-            AuditResponse response = AuditResponse.newBuilder()
-                                                                .setAck(ack)
-                                                                .setTransferHistory(r[1])
-                                                                .setNewTimestamp(newTimestamp)
-                                                                .setSignature(ByteString.copyFrom(signature))
-                                                                .build();
+            AuditResponse response = AuditResponse.newBuilder().setTransferHistory(r[0])
+                    .setNewTimestamp(newTimestamp)
+                    .setSignature(ByteString.copyFrom(signature))
+                    .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (AccountDoesNotExistsException e) {

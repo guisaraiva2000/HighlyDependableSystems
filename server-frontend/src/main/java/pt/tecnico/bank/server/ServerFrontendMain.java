@@ -8,7 +8,7 @@ public class ServerFrontendMain {
 	public static void main(String[] args) {
 		System.out.println(ServerFrontendMain.class.getSimpleName());
 
-		ServerFrontend frontend = new ServerFrontend();
+		ServerFrontend frontend = new ServerFrontend(1);
 
 		try {
 			PingRequest request = PingRequest.newBuilder().setInput("friend").build();

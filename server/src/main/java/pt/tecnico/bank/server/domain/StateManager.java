@@ -3,21 +3,23 @@ package pt.tecnico.bank.server.domain;
 import java.io.*;
 import java.nio.file.*;
 import java.security.PublicKey;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class StateManager {
 
     private final Path dataPath;
+    private final String sName;
 
-    public StateManager(int id) {
-        dataPath = Paths.get(System.getProperty("user.dir"), "storage", "server_" + id, "data.txt");
+    public StateManager(String sName) {
+        this.sName = sName;
+        dataPath = Paths.get(System.getProperty("user.dir"), "storage", this.sName, "data.txt");
     }
 
-    HashMap<PublicKey, User> loadState() {
-        HashMap<PublicKey, User> users = new HashMap<>();
+    ConcurrentHashMap<PublicKey, User> loadState() {
+        ConcurrentHashMap<PublicKey, User> users = new ConcurrentHashMap<>();
         try (FileInputStream fis = new FileInputStream(dataPath.toString());
              ObjectInputStream ois = new ObjectInputStream(fis)) {
-            users = (HashMap<PublicKey, User>) ois.readObject();
+            users = (ConcurrentHashMap<PublicKey, User>) ois.readObject();
         } catch (FileNotFoundException fnfe) {
             try {
                 Files.createDirectories(dataPath.getParent());
@@ -33,17 +35,17 @@ public class StateManager {
         return users;
     }
 
-    void saveState(HashMap<PublicKey, User> users) throws IOException {
+    void saveState(ConcurrentHashMap<PublicKey, User> users) throws IOException {
         byte[] userBytes = mapToBytes(users);
 
-        Path tmpPath = Paths.get(System.getProperty("user.dir"), "storage");
+        Path tmpPath = Paths.get(System.getProperty("user.dir"), "storage", this.sName);
         Path tmpPathFile = File.createTempFile("atomic", "tmp", new File(tmpPath.toString())).toPath();
         Files.write(tmpPathFile, userBytes, StandardOpenOption.APPEND);
 
         Files.move(tmpPathFile, dataPath, StandardCopyOption.ATOMIC_MOVE);
     }
 
-    byte[] mapToBytes(HashMap<PublicKey, User> users) throws IOException {
+    byte[] mapToBytes(ConcurrentHashMap<PublicKey, User> users) throws IOException {
         ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
         ObjectOutputStream out = new ObjectOutputStream(byteOut);
         out.writeObject(users);

@@ -40,6 +40,7 @@
 		builds the selected projects in order. -->
 	<modules>
 		<module>server-contract</module>
+		<module>crypto</module>
 		<module>server</module>
 		<module>server-frontend</module>
 		<module>tester</module>

@@ -1,21 +1,21 @@
 package pt.tecnico.bank.server.domain;
 
 import com.google.protobuf.ByteString;
+import org.bouncycastle.operator.OperatorCreationException;
+import pt.tecnico.bank.crypto.Crypto;
 import pt.tecnico.bank.server.domain.exceptions.*;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.lang.model.util.ElementScanner14;
-
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
-import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -24,54 +24,45 @@ import java.util.stream.Collectors;
  */
 public class Server implements Serializable {
 
-    private final HashMap<PublicKey, User> users;
+    private final ConcurrentHashMap<PublicKey, User> users;
     private final StateManager stateManager;
-    private final SecurityHandler securityHandler;
+    private final Crypto crypto;
+    private final String sName;
 
-    public Server(int id) {
-        stateManager = new StateManager(id);
-        securityHandler = new SecurityHandler();
-        users = stateManager.loadState();
+    public Server(String sName, int port, int nByzantineServers) {
+        this.sName = sName;
+        this.stateManager = new StateManager(sName);
+
+        this.crypto = new Crypto(sName, sName, false);
+        this.users = stateManager.loadState();
+
+        initServerKeys();
     }
 
     public synchronized String[] openAccount(ByteString pubKey, ByteString signature)
             throws AccountAlreadyExistsException, IOException, NoSuchAlgorithmException, InvalidKeySpecException,
             UnrecoverableKeyException, CertificateException, KeyStoreException, SignatureException, InvalidKeyException,
             IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, SignatureNotValidException {
-        PublicKey pubKeyBytes = securityHandler.keyToBytes(pubKey);
+        PublicKey pubKeyBytes = crypto.keyToBytes(pubKey);
         byte[] sig = new byte[256];
         signature.copyTo(sig, 0);
 
-        boolean ack = false;
-        Exception exception = null;
-        
-        if (users.containsKey(pubKeyBytes)){
-            exception = new AccountAlreadyExistsException();
-            
-            String responseMessage = String.valueOf(ack) + pubKeyBytes + exception.getMessage();
-            return new String[]{String.valueOf(ack), pubKeyBytes.toString(),
-                new String(securityHandler.encrypt(responseMessage), StandardCharsets.ISO_8859_1), exception.getMessage()};
-        }
-            
+        if (users.containsKey(pubKeyBytes))
+            throw new AccountAlreadyExistsException();
+
         String message = pubKeyBytes.toString();
 
-        if (!securityHandler.validateMessage(pubKeyBytes, message, sig)){
-            exception = new SignatureNotValidException();
-            String responseMessage = String.valueOf(ack) + pubKeyBytes + exception.getMessage();
-            return new String[]{String.valueOf(ack), pubKeyBytes.toString(),
-                new String(securityHandler.encrypt(responseMessage), StandardCharsets.ISO_8859_1), exception.getMessage()};
-        }
-        
-        ack = true;
+        if (!crypto.validateMessage(pubKeyBytes, message, sig))
+            throw new SignatureNotValidException();
 
         User newUser = new User(pubKeyBytes, 100);
         users.put(pubKeyBytes, newUser);
 
-        String responseMessage = String.valueOf(ack) + pubKeyBytes + "";
+        String newMessage = "true" + pubKeyBytes;
 
         stateManager.saveState(users);
-        return new String[]{String.valueOf(ack), pubKeyBytes.toString(),
-                new String(securityHandler.encrypt(responseMessage), StandardCharsets.ISO_8859_1), ""};
+        return new String[]{"true", pubKeyBytes.toString(),
+                new String(crypto.encrypt(this.sName, newMessage), StandardCharsets.ISO_8859_1)};
     }
 
     public synchronized String[] sendAmount(ByteString sourceKeyString, ByteString destinationKeyString, int amount,
@@ -81,151 +72,86 @@ public class Server implements Serializable {
             InvalidKeySpecException, UnrecoverableKeyException, CertificateException, KeyStoreException, IOException,
             SignatureException, InvalidKeyException {
 
-        PublicKey sourceKey = securityHandler.keyToBytes(sourceKeyString);
-        PublicKey destinationKey = securityHandler.keyToBytes(destinationKeyString);
+        PublicKey sourceKey = crypto.keyToBytes(sourceKeyString);
+        PublicKey destinationKey = crypto.keyToBytes(destinationKeyString);
 
-        boolean ack = false;
-        Exception exception = null;
+        if (sourceKey.equals(destinationKey)) {
+            throw new SameAccountException();
+        } else if (!(users.containsKey(sourceKey) && users.containsKey(destinationKey))) {
+            throw new AccountDoesNotExistsException();
+        }
 
-        if (sourceKey.equals(destinationKey)){
-            exception = new SameAccountException();
-            String[] responseMessage = new String[3];
-            responseMessage[0] = String.valueOf(ack);
-            responseMessage[1] = sourceKey.toString();
-            responseMessage[2] = exception.getMessage();
-            return securityHandler.createResponse(responseMessage, nonce, timestamp);
-        }
-        
-        if (!(users.containsKey(sourceKey) && users.containsKey(destinationKey))){
-            exception = new AccountDoesNotExistsException();
-            String[] responseMessage = new String[3];
-            responseMessage[0] = String.valueOf(ack);
-            responseMessage[1] = sourceKey.toString();
-            responseMessage[2] = exception.getMessage();
-            return securityHandler.createResponse(responseMessage, nonce, timestamp);
-        }
-        
         String message = sourceKey + destinationKey.toString() + amount + nonce + timestamp;
 
         byte[] signatureBytes = new byte[256];
         signature.copyTo(signatureBytes, 0);
 
-        if (!securityHandler.validateMessage(sourceKey, message, signatureBytes)){
-            exception = new SignatureNotValidException();
-            String[] responseMessage = new String[3];
-            responseMessage[0] = String.valueOf(ack);
-            responseMessage[1] = sourceKey.toString();
-            responseMessage[2] = exception.getMessage();
-            return securityHandler.createResponse(responseMessage, nonce, timestamp);
-        }
+        if (!crypto.validateMessage(sourceKey, message, signatureBytes))
+            throw new SignatureNotValidException();
 
         User sourceUser = users.get(sourceKey);
-        securityHandler.validateNonce(sourceUser, nonce, timestamp);
+        validateNonce(sourceUser, nonce, timestamp);
 
-        if (sourceUser.getBalance() + sourceUser.getPendentAmount() < amount){
-            exception = new NotEnoughBalanceException();
-            String[] responseMessage = new String[3];
-            responseMessage[0] = String.valueOf(ack);
-            responseMessage[1] = sourceKey.toString();
-            responseMessage[2] = exception.getMessage();
-            return securityHandler.createResponse(responseMessage, nonce, timestamp);
-        }
-
-        ack = true;
+        if (sourceUser.getBalance() + sourceUser.getPendentAmount() < amount)
+            throw new NotEnoughBalanceException();
 
         addPendingAmount(-amount, sourceKey);
         addPendingTransfer(amount, sourceKey, destinationKey);  // add to dest pending list
 
         stateManager.saveState(users);
-        String[] responseMessage = new String[3];
-        responseMessage[0] = String.valueOf(ack);
-        responseMessage[1] = sourceKey.toString();
-        responseMessage[2] = "";
-        return securityHandler.createResponse(responseMessage, nonce, timestamp);
+        String[] newMessage = new String[2];
+        newMessage[0] = "true";
+        newMessage[1] = sourceKey.toString();
+        return createResponse(newMessage, nonce, timestamp);
     }
 
     public synchronized String[] checkAccount(ByteString checkKey) throws AccountDoesNotExistsException,
             NoSuchAlgorithmException, InvalidKeySpecException, UnrecoverableKeyException, CertificateException,
             KeyStoreException, IOException, SignatureException, InvalidKeyException {
+        PublicKey pubKeyBytes = crypto.keyToBytes(checkKey);
 
-        PublicKey pubKeyBytes = securityHandler.keyToBytes(checkKey);
-        long newTimestamp = System.currentTimeMillis() / 1000;
+        if (!(users.containsKey(pubKeyBytes)))
+            throw new AccountDoesNotExistsException();
+
         String pendingTransfersAsString = null;
-
-        boolean ack = false;
-        Exception exception = null;
-
-        if (!(users.containsKey(pubKeyBytes))){
-            exception = new AccountDoesNotExistsException();
-
-            String responseMessage = String.valueOf(ack) + String.valueOf(users.get(pubKeyBytes).getBalance()) +
-            (-users.get(pubKeyBytes).getPendentAmount()) +
-            pendingTransfersAsString + newTimestamp + exception.getMessage();
-
-            return new String[]{String.valueOf(ack), String.valueOf(users.get(pubKeyBytes).getBalance()),
-                String.valueOf(-users.get(pubKeyBytes).getPendentAmount()),
-                pendingTransfersAsString, String.valueOf(newTimestamp),
-                new String(securityHandler.encrypt(responseMessage), StandardCharsets.ISO_8859_1), exception.getMessage()};
-        }
-
-        ack = true;
-
         LinkedList<Transfer> pendingTransfers = users.get(pubKeyBytes).getPendingTransfers();
 
-        if (pendingTransfers != null)
+        if (pendingTransfers != null) {
             pendingTransfersAsString = getTransfersAsString(pendingTransfers);
+        }
 
+        long newTimestamp = System.currentTimeMillis() / 1000;
 
-        String responseMessage = String.valueOf(ack) + String.valueOf(users.get(pubKeyBytes).getBalance()) +
+        String message = String.valueOf(users.get(pubKeyBytes).getBalance()) +
                 (-users.get(pubKeyBytes).getPendentAmount()) +
-                pendingTransfersAsString + newTimestamp + "";
+                pendingTransfersAsString + newTimestamp;
 
-        return new String[]{String.valueOf(ack), String.valueOf(users.get(pubKeyBytes).getBalance()),
+        return new String[]{String.valueOf(users.get(pubKeyBytes).getBalance()),
                 String.valueOf(-users.get(pubKeyBytes).getPendentAmount()),
                 pendingTransfersAsString, String.valueOf(newTimestamp),
-                new String(securityHandler.encrypt(responseMessage), StandardCharsets.ISO_8859_1), ""};
+                new String(crypto.encrypt(this.sName, message), StandardCharsets.ISO_8859_1)
+        };
     }
 
     public synchronized String[] receiveAmount(ByteString pubKeyString, ByteString signature, long nonce, long timestamp)
             throws AccountDoesNotExistsException, NonceAlreadyUsedException, TimestampExpiredException,
             SignatureNotValidException, NoSuchAlgorithmException, InvalidKeySpecException, UnrecoverableKeyException,
             CertificateException, KeyStoreException, IOException, SignatureException, InvalidKeyException {
-        PublicKey pubKey = securityHandler.keyToBytes(pubKeyString);
+        PublicKey pubKey = crypto.keyToBytes(pubKeyString);
 
-        boolean ack = false;
-        Exception exception = null;
-
-        if (!(users.containsKey(pubKey))){
-            exception = new AccountDoesNotExistsException();
-            String[] responseMessage = new String[4];
-            responseMessage[0] = String.valueOf(ack);
-            responseMessage[1] = String.valueOf(0);
-            responseMessage[2] = pubKey.toString();
-            responseMessage[3] = exception.getMessage();
-    
-            return securityHandler.createResponse(responseMessage, nonce, timestamp);
-        }
+        if (!(users.containsKey(pubKey)))
+            throw new AccountDoesNotExistsException();
 
         String message = pubKey.toString() + nonce + timestamp;
 
         byte[] signatureBytes = new byte[256];
         signature.copyTo(signatureBytes, 0);
 
-        if (!securityHandler.validateMessage(pubKey, message, signatureBytes)){
-            exception = new SignatureNotValidException();
-            String[] responseMessage = new String[4];
-            responseMessage[0] = String.valueOf(ack);
-            responseMessage[1] = String.valueOf(0);
-            responseMessage[2] = pubKey.toString();
-            responseMessage[3] = exception.getMessage();
-
-            return securityHandler.createResponse(responseMessage, nonce, timestamp);
-        }
-
-        ack = true;
+        if (!crypto.validateMessage(pubKey, message, signatureBytes))
+            throw new SignatureNotValidException();
 
         User user = users.get(pubKey);
-        securityHandler.validateNonce(user, nonce, timestamp);
+        validateNonce(user, nonce, timestamp);
 
         LinkedList<Transfer> pendingTransfers = user.getPendingTransfers();
         int oldBalance = user.getBalance();
@@ -239,46 +165,34 @@ public class Server implements Serializable {
         user.setPendingTransfers(pendingTransfers); // clear the list
         users.put(pubKey, user); // update user
 
-        String[] responseMessage = new String[4];
-        responseMessage[0] = String.valueOf(ack);
-        responseMessage[1] = String.valueOf(user.getBalance() - oldBalance);
-        responseMessage[2] = pubKey.toString();
-        responseMessage[3] = "";
+        String[] newMessage = new String[2];
+        newMessage[0] = String.valueOf(user.getBalance() - oldBalance);
+        newMessage[1] = pubKey.toString();
 
         stateManager.saveState(users);
-        return securityHandler.createResponse(responseMessage, nonce, timestamp);
+        return createResponse(newMessage, nonce, timestamp);
     }
 
     public synchronized String[] audit(ByteString checkKeyString) throws AccountDoesNotExistsException,
             NoSuchAlgorithmException, InvalidKeySpecException, UnrecoverableKeyException, CertificateException,
             KeyStoreException, IOException, SignatureException, InvalidKeyException {
-        PublicKey pubKey = securityHandler.keyToBytes(checkKeyString);
+        PublicKey pubKey = crypto.keyToBytes(checkKeyString);
 
-        boolean ack = false;
-        Exception exception = null;
-        String responseMessage = "";
-        long newTimestamp = System.currentTimeMillis() / 1000;
-
-        if (!(users.containsKey(pubKey))){
-            exception = new AccountDoesNotExistsException();
-
-            responseMessage = String.valueOf(ack) + String.valueOf(0) + newTimestamp + exception.getMessage();
-            return new String[]{String.valueOf(ack), String.valueOf(0), String.valueOf(newTimestamp),
-                new String(securityHandler.encrypt(responseMessage), StandardCharsets.ISO_8859_1), exception.getMessage()};
-        }
-
-        ack = true;
+        if (!(users.containsKey(pubKey)))
+            throw new AccountDoesNotExistsException();
 
         LinkedList<Transfer> totalTransfers = users.get(pubKey).getTotalTransfers();
+        String message;
 
+        long newTimestamp = System.currentTimeMillis() / 1000;
         if (totalTransfers.isEmpty()) {
-            responseMessage = String.valueOf(ack) + "No transfers waiting to be accepted" + newTimestamp + "";
+            message = "No transfers waiting to be accepted" + newTimestamp;
             return new String[]{"No transfers waiting to be accepted", String.valueOf(newTimestamp),
-                    new String(securityHandler.encrypt(responseMessage), StandardCharsets.ISO_8859_1), ""};
+                    new String(crypto.encrypt(this.sName, message), StandardCharsets.ISO_8859_1)};
         }
-        responseMessage = String.valueOf(ack) + getTransfersAsString(totalTransfers) + newTimestamp + "";
-        return new String[]{String.valueOf(ack), getTransfersAsString(totalTransfers), String.valueOf(newTimestamp),
-                new String(securityHandler.encrypt(responseMessage), StandardCharsets.ISO_8859_1), ""};
+        message = getTransfersAsString(totalTransfers) + newTimestamp;
+        return new String[]{getTransfersAsString(totalTransfers), String.valueOf(newTimestamp),
+                new String(crypto.encrypt(this.sName, message), StandardCharsets.ISO_8859_1)};
     }
 
     // ------------------------------------ AUX -------------------------------------
@@ -311,4 +225,40 @@ public class Server implements Serializable {
         return pendingTransfers.stream().map(Transfer::toString).collect(Collectors.joining());
     }
 
+    void validateNonce(User user, long nonce, long timestamp)
+            throws NonceAlreadyUsedException, TimestampExpiredException {
+        user.getNonceManager().validateNonce(nonce, timestamp);
+    }
+
+    String[] createResponse(String[] message, long nonce, long timestamp) throws UnrecoverableKeyException,
+            CertificateException, KeyStoreException, IOException, NoSuchAlgorithmException, SignatureException, InvalidKeyException {
+        long newTimestamp = System.currentTimeMillis() / 1000;
+
+        String[] response = new String[message.length + 4];
+        StringBuilder m = new StringBuilder();
+
+        int i;
+        for (i = 0; i < message.length; i++) {
+            response[i] = message[i];
+            m.append(message[i]);
+        }
+
+        m.append(nonce + 1).append(timestamp).append(newTimestamp);
+        byte[] signServer = crypto.encrypt(this.sName, m.toString());
+
+        response[i] = String.valueOf(nonce + 1);
+        response[i + 1] = String.valueOf(timestamp);
+        response[i + 2] = String.valueOf(newTimestamp);
+        response[i + 3] = new String(signServer, StandardCharsets.ISO_8859_1);
+
+        return response;
+    }
+
+    void initServerKeys() {
+        try {
+            this.crypto.getKey(this.sName);
+        } catch (NoSuchAlgorithmException | OperatorCreationException | CertificateException | IOException | KeyStoreException e) {
+            e.printStackTrace();
+        }
+    }
 }
