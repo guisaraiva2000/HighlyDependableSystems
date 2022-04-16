@@ -166,6 +166,6 @@ modules.xml
 # VS Code
 .vscode/
 
-.jks
-.key
-.cert
+*.jks
+*.key
+*.cert

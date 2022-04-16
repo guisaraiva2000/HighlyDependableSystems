@@ -2,31 +2,28 @@ package pt.tecnico.bank.client;
 
 import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
-import org.bouncycastle.operator.OperatorCreationException;
 import pt.tecnico.bank.client.exceptions.AccountAlreadyExistsException;
 import pt.tecnico.bank.client.exceptions.InvalidAmountException;
 import pt.tecnico.bank.crypto.Crypto;
-import pt.tecnico.bank.crypto.exceptions.AccountDoesNotExistsException;
-import pt.tecnico.bank.server.ServerFrontend;
+import pt.tecnico.bank.client.frontend.Frontend;
 import pt.tecnico.bank.server.grpc.Server.*;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.security.*;
-import java.security.cert.CertificateException;
+import java.security.Key;
+import java.security.PublicKey;
+import java.security.SecureRandom;
 
 public class Client {
 
     public final String ANSI_GREEN = "\033[0;32m";
     public final String ANSI_RED = "\033[0;31m";
 
-    private final ServerFrontend frontend;
+    private final Frontend frontend;
     private final Crypto crypto;
     private final int VALIDITY_INTERVAL = 60 * 10;
 
-    public Client(ServerFrontend frontend, String username, String password) {
-        this.frontend = frontend;
+    public Client(String username, String password, int nByzantineServers) {
         this.crypto = new Crypto(username, password, true);
+        this.frontend = new Frontend(nByzantineServers, this.crypto);
     }
 
     public String ping() {
@@ -57,7 +54,7 @@ public class Client {
 
             OpenAccountResponse res = frontend.openAccount(req);
 
-            boolean ack = res.getAck();
+            /*boolean ack = res.getAck();
             ByteString keyString = res.getPublicKey();
             byte[] key = new byte[698];
             keyString.copyTo(key, 0);
@@ -72,9 +69,7 @@ public class Client {
         } catch (StatusRuntimeException e) {
             e.printStackTrace();
             return handleError(e);
-        } catch (CertificateException | NoSuchAlgorithmException | KeyStoreException | IOException | AccountAlreadyExistsException
-                | UnrecoverableKeyException | SignatureException | InvalidKeyException | OperatorCreationException e) {
-            e.printStackTrace();
+        } catch (AccountAlreadyExistsException e) {
             return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Account with name " + accountName + " created";
@@ -104,7 +99,7 @@ public class Client {
                     .build();
             SendAmountResponse response = frontend.sendAmount(req);
 
-            boolean ack = response.getAck();
+            /*boolean ack = response.getAck();
             long recvTimestamp = response.getRecvTimestamp();
             long newTimestamp = response.getNewTimestamp();
             long newNonce = response.getNonce();
@@ -120,8 +115,7 @@ public class Client {
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
-        } catch (AccountDoesNotExistsException | CertificateException | SignatureException | NoSuchAlgorithmException
-                | InvalidKeyException | IOException | KeyStoreException | UnrecoverableKeyException | InvalidAmountException e) {
+        } catch (InvalidAmountException e) {
             return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Sent " + amount + " from " + senderAccount + " to " + receiverAccount;
@@ -140,7 +134,7 @@ public class Client {
             balance = res.getBalance();
             pendentAmount = res.getPendentAmount();
             transfers = res.getPendentTransfers();
-            long newTimestamp = res.getNewTimestamp();
+           /*long newTimestamp = res.getNewTimestamp();
             ByteString sig = res.getSignature();
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature, 0);
@@ -155,8 +149,6 @@ public class Client {
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
-        } catch (FileNotFoundException | CertificateException | AccountDoesNotExistsException e) {
-            return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Account Status:\n\t" +
                 "- Balance: " + balance +
@@ -185,7 +177,7 @@ public class Client {
             ReceiveAmountResponse response = frontend.receiveAmount(req);
 
             recvAmount = response.getRecvAmount();
-            long recvTimestamp = response.getRecvTimestamp();
+            /*long recvTimestamp = response.getRecvTimestamp();
             long newTimestamp = response.getNewTimestamp();
             long newNonce = response.getNonce();
             ByteString sig = response.getSignature();
@@ -200,10 +192,8 @@ public class Client {
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
-        } catch (CertificateException | AccountDoesNotExistsException | SignatureException | NoSuchAlgorithmException
-                | InvalidKeyException | IOException | KeyStoreException | UnrecoverableKeyException e) {
-            return ANSI_RED + e.getMessage();
         }
+
         return ANSI_GREEN + "Amount deposited to your account: " + recvAmount;
     }
 
@@ -217,7 +207,7 @@ public class Client {
             AuditResponse res = frontend.audit(req);
 
             transfers = res.getTransferHistory();
-            long newTimestamp = res.getNewTimestamp();
+           /* long newTimestamp = res.getNewTimestamp();
             ByteString sig = res.getSignature();
             byte[] newSignature = new byte[256];
             sig.copyTo(newSignature, 0);
@@ -231,9 +221,8 @@ public class Client {
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
-        } catch (FileNotFoundException | CertificateException | AccountDoesNotExistsException e) {
-            return ANSI_RED + e.getMessage();
         }
+
         return ANSI_GREEN + "Total transfers: " + transfers.replaceAll("-", "\n\t-");
     }
 
@@ -247,5 +236,9 @@ public class Client {
 
     private String mimWarn() {
         return ANSI_RED + "WARNING! Invalid message from server. Someone might be intercepting your messages with the server.";
+    }
+
+    void close() {
+        frontend.close();
     }
 }

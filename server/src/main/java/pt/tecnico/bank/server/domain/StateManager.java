@@ -35,23 +35,33 @@ public class StateManager {
         return users;
     }
 
-    void saveState(ConcurrentHashMap<PublicKey, User> users) throws IOException {
-        byte[] userBytes = mapToBytes(users);
+    void saveState(ConcurrentHashMap<PublicKey, User> users) {
+        try {
+            byte[] userBytes = mapToBytes(users);
 
-        Path tmpPath = Paths.get(System.getProperty("user.dir"), "storage", this.sName);
-        Path tmpPathFile = File.createTempFile("atomic", "tmp", new File(tmpPath.toString())).toPath();
-        Files.write(tmpPathFile, userBytes, StandardOpenOption.APPEND);
+            Path tmpPath = Paths.get(System.getProperty("user.dir"), "storage", this.sName);
+            Path tmpPathFile = File.createTempFile("atomic", "tmp", new File(tmpPath.toString())).toPath();
+            Files.write(tmpPathFile, userBytes, StandardOpenOption.APPEND);
 
-        Files.move(tmpPathFile, dataPath, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(tmpPathFile, dataPath, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
     }
 
-    byte[] mapToBytes(ConcurrentHashMap<PublicKey, User> users) throws IOException {
-        ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        ObjectOutputStream out = new ObjectOutputStream(byteOut);
-        out.writeObject(users);
-        byte[] userBytes = byteOut.toByteArray();
-        out.flush();
-        byteOut.close();
-        return userBytes;
+    byte[] mapToBytes(ConcurrentHashMap<PublicKey, User> users) {
+        try {
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            ObjectOutputStream out = new ObjectOutputStream(byteOut);
+            out.writeObject(users);
+            byte[] userBytes = byteOut.toByteArray();
+            out.flush();
+            byteOut.close();
+            return userBytes;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 }

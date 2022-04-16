@@ -1,7 +1,6 @@
 package pt.tecnico.bank.client;
 
 import io.grpc.StatusRuntimeException;
-import pt.tecnico.bank.server.ServerFrontend;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -17,15 +16,7 @@ public class ClientMain {
         int nByzantineServers = Integer.parseInt(args[0]);
         String userPath = args[1];
 
-        ServerFrontend frontend;
-        Client client;
-
-        try {
-            frontend = new ServerFrontend(nByzantineServers);
-        } catch (Exception e) {
-            System.out.println("Caught exception with description: " + e.getMessage());
-            return;
-        }
+        Client client = null;
 
         String ANSI_YELLOW = "\u001B[33m";
         String ANSI_RED = "\u001B[31m";
@@ -59,7 +50,7 @@ public class ClientMain {
                 }
 
                 while(loggedIn){
-                    client = new Client(frontend, username, password);
+                    client = new Client(username, password, nByzantineServers);
 
                     System.out.print(ANSI_YELLOW + "> ");
                     System.out.flush();
@@ -126,7 +117,10 @@ public class ClientMain {
         } catch (Exception e){
             e.printStackTrace();
         } finally {
-            frontend.close();
+            if( client != null) {
+                System.out.println("Closing channels...");
+                client.close();
+            }
             System.exit(0);
         }
     }
