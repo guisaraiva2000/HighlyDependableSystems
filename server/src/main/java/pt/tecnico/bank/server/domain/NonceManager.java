@@ -3,9 +3,6 @@ package pt.tecnico.bank.server.domain;
 import java.io.Serializable;
 import java.util.*;
 
-import pt.tecnico.bank.server.domain.exceptions.NonceAlreadyUsedException;
-import pt.tecnico.bank.server.domain.exceptions.TimestampExpiredException;
-
 public class NonceManager implements Serializable {
 
     /**
@@ -18,17 +15,19 @@ public class NonceManager implements Serializable {
     // we'll default to a 10-minute validity window, otherwise the amount of memory used on nonces can get quite large.
     private long validityWindowSeconds = 60 * 10;
 
-    public void validateNonce(long nonce, long timestamp) throws TimestampExpiredException, NonceAlreadyUsedException {
+    public boolean validateNonce(long nonce, long timestamp)  {
         if (System.currentTimeMillis() / 1000 - timestamp > getValidityWindowSeconds())
-            throw new TimestampExpiredException();
+            return false;
 
         NonceEntry entry = new NonceEntry(timestamp, nonce);
 
         if (nonces.contains(entry))
-            throw new NonceAlreadyUsedException();
+            return false;
 
         nonces.add(entry);
         cleanupNonces();
+
+        return true;
     }
 
     private void cleanupNonces() {

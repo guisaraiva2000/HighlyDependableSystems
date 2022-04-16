@@ -39,8 +39,8 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             responseObserver.onNext(server.openAccount(request.getPublicKey(), request.getSignature()));
             responseObserver.onCompleted();
 
-        } catch (AccountAlreadyExistsException | SignatureNotValidException e) {
-            responseObserver.onError(ALREADY_EXISTS.withDescription(e.getMessage()).asRuntimeException());
+        } catch (ServerStatusRuntimeException e) {
+            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException(e.getTrailers()));
         }
     }
 
@@ -59,9 +59,8 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
 
             responseObserver.onCompleted();
 
-        } catch (AccountDoesNotExistsException | SameAccountException | NotEnoughBalanceException
-                | NonceAlreadyUsedException | TimestampExpiredException | SignatureNotValidException e) {
-            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException());
+        } catch (ServerStatusRuntimeException e) {
+            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException(e.getTrailers()));
         }
     }
 
@@ -69,11 +68,11 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void checkAccount(CheckAccountRequest request, StreamObserver<CheckAccountResponse> responseObserver) {
         try {
 
-            responseObserver.onNext(server.checkAccount(request.getPublicKey()));
+            responseObserver.onNext(server.checkAccount(request.getPublicKey(), request.getNonce(), request.getTimestamp()));
             responseObserver.onCompleted();
 
-        } catch (AccountDoesNotExistsException e) {
-            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException());
+        } catch (ServerStatusRuntimeException e) {
+            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException(e.getTrailers()));
         }
     }
 
@@ -89,8 +88,8 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
             );
             responseObserver.onCompleted();
 
-        } catch (AccountDoesNotExistsException | NonceAlreadyUsedException | TimestampExpiredException | SignatureNotValidException e) {
-            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException());
+        } catch (ServerStatusRuntimeException e) {
+            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException(e.getTrailers()));
         }
     }
 
@@ -98,11 +97,11 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void audit(AuditRequest request, StreamObserver<AuditResponse> responseObserver) {
         try {
 
-            responseObserver.onNext(server.audit(request.getPublicKey()));
+            responseObserver.onNext(server.audit(request.getPublicKey(), request.getNonce(), request.getTimestamp()));
             responseObserver.onCompleted();
 
-        } catch (AccountDoesNotExistsException e) {
-            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException());
+        } catch (ServerStatusRuntimeException e) {
+            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException(e.getTrailers()));
         }
     }
 

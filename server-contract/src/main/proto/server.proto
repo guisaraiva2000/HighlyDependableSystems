@@ -42,6 +42,8 @@ message SendAmountResponse {
 message CheckAccountRequest {
   bytes public_key = 1;
   bytes client_key = 2;
+  int64 nonce = 3;
+  int64 timestamp = 4;
 }
 
 message CheckAccountResponse {
@@ -49,6 +51,7 @@ message CheckAccountResponse {
   int32 pendent_amount = 2;
   string pendent_transfers = 3;
   bytes signature = 4;
+  int64 nonce = 5;
 }
 
 message ReceiveAmountRequest {
@@ -69,11 +72,20 @@ message ReceiveAmountResponse {
 message AuditRequest {
   bytes public_key = 1;
   bytes client_key = 2;
+  int64 nonce = 3;
+  int64 timestamp = 4;
 }
 
 message AuditResponse {
   string transfer_history = 1;
   bytes signature = 2;
+  int64 nonce = 5;
+}
+
+message ErrorResponse {
+  string errorMsg = 1;
+  int64 nonce = 2;
+  bytes signature = 3;
 }
 
 service ServerService {

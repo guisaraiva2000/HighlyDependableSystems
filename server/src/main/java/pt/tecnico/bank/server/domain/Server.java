@@ -1,9 +1,13 @@
 package pt.tecnico.bank.server.domain;
 
 import com.google.protobuf.ByteString;
+import io.grpc.Status;
 import pt.tecnico.bank.crypto.Crypto;
 import pt.tecnico.bank.server.domain.exceptions.*;
+import pt.tecnico.bank.server.domain.exceptions.ErrorMessage;
 import pt.tecnico.bank.server.grpc.Server.*;
+import static pt.tecnico.bank.server.domain.exceptions.ErrorMessage.*;
+
 
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
@@ -33,21 +37,19 @@ public class Server implements Serializable {
         initServerKeys();
     }
 
-    public synchronized OpenAccountResponse openAccount(ByteString pubKey, ByteString signature)
-            throws AccountAlreadyExistsException, SignatureNotValidException {
+    public synchronized OpenAccountResponse openAccount(ByteString pubKey, ByteString signature) {
 
         PublicKey pubKeyBytes = crypto.bytesToKey(pubKey);
 
-        byte[] sig = new byte[256];
-        signature.copyTo(sig, 0);
+        byte[] sig = crypto.getSignature(signature);
 
         if (users.containsKey(pubKeyBytes))
-            throw new AccountAlreadyExistsException();
+            throwError(ACCOUNT_ALREADY_EXISTS, 0);
 
         String message = pubKeyBytes.toString();
 
         if (!crypto.validateMessage(pubKeyBytes, message, sig))
-            throw new SignatureNotValidException();
+            throwError(INVALID_SIGNATURE, 0);
 
         User newUser = new User(pubKeyBytes, 100);
         users.put(pubKeyBytes, newUser);
@@ -62,32 +64,31 @@ public class Server implements Serializable {
     }
 
     public synchronized SendAmountResponse sendAmount(ByteString sourceKeyString, ByteString destinationKeyString, int amount,
-                                            long nonce, long timestamp, ByteString signature)
-            throws AccountDoesNotExistsException, SameAccountException, NotEnoughBalanceException,
-            NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException {
+                                            long nonce, long timestamp, ByteString signature) {
 
         PublicKey sourceKey = crypto.bytesToKey(sourceKeyString);
         PublicKey destinationKey = crypto.bytesToKey(destinationKeyString);
 
         if (sourceKey.equals(destinationKey)) {
-            throw new SameAccountException();
+            throwError(SAME_ACCOUNT, nonce + 1);
         } else if (!(users.containsKey(sourceKey) && users.containsKey(destinationKey))) {
-            throw new AccountDoesNotExistsException();
+            throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
         }
 
         String message = sourceKey + destinationKey.toString() + amount + nonce + timestamp;
 
-        byte[] signatureBytes = new byte[256];
-        signature.copyTo(signatureBytes, 0);
+        byte[] sig = crypto.getSignature(signature);
 
-        if (!crypto.validateMessage(sourceKey, message, signatureBytes))
-            throw new SignatureNotValidException();
+        if (!crypto.validateMessage(sourceKey, message, sig))
+            throwError(INVALID_SIGNATURE, nonce + 1);
 
         User sourceUser = users.get(sourceKey);
-        validateNonce(sourceUser, nonce, timestamp);
+
+        if(!validateNonce(sourceUser, nonce, timestamp))
+            throwError(INVALID_NONCE, nonce + 1);
 
         if (sourceUser.getBalance() + sourceUser.getPendentAmount() < amount)
-            throw new NotEnoughBalanceException();
+            throwError(NOT_ENOUGH_BALANCE, nonce + 1);
 
         addPendingAmount(-amount, sourceKey);
         addPendingTransfer(amount, sourceKey, destinationKey);  // add to dest pending list
@@ -102,11 +103,16 @@ public class Server implements Serializable {
                 .build();
     }
 
-    public synchronized CheckAccountResponse checkAccount(ByteString checkKey) throws AccountDoesNotExistsException {
+    public synchronized CheckAccountResponse checkAccount(ByteString checkKey, long nonce, long timestamp) {
         PublicKey pubKeyBytes = crypto.bytesToKey(checkKey);
 
         if (!(users.containsKey(pubKeyBytes)))
-            throw new AccountDoesNotExistsException();
+            throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
+
+        User user = users.get(pubKeyBytes);
+
+        if(!validateNonce(user, nonce, timestamp))
+            throwError(INVALID_NONCE, nonce + 1);
 
         String pendingTransfersAsString = null;
         LinkedList<Transfer> pendingTransfers = users.get(pubKeyBytes).getPendingTransfers();
@@ -116,33 +122,35 @@ public class Server implements Serializable {
 
         int currBalance = users.get(pubKeyBytes).getBalance();
         int pendAmount = -users.get(pubKeyBytes).getPendentAmount();
-        String message = String.valueOf(currBalance) + pendAmount + pendingTransfersAsString;
+        String message = String.valueOf(currBalance) + pendAmount + pendingTransfersAsString + (nonce + 1);
 
         return CheckAccountResponse.newBuilder()
                 .setBalance(currBalance)
                 .setPendentAmount(pendAmount)
                 .setPendentTransfers(pendingTransfersAsString)
+                .setNonce(nonce + 1)
                 .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, message)))
                 .build();
     }
 
-    public synchronized ReceiveAmountResponse receiveAmount(ByteString pubKeyString, ByteString signature, long nonce, long timestamp)
-            throws AccountDoesNotExistsException, NonceAlreadyUsedException, TimestampExpiredException, SignatureNotValidException {
+    public synchronized ReceiveAmountResponse receiveAmount(ByteString pubKeyString, ByteString signature, long nonce, long timestamp) {
+
         PublicKey pubKey = crypto.bytesToKey(pubKeyString);
 
         if (!(users.containsKey(pubKey)))
-            throw new AccountDoesNotExistsException();
+            throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
 
         String message = pubKey.toString() + nonce + timestamp;
 
-        byte[] signatureBytes = new byte[256];
-        signature.copyTo(signatureBytes, 0);
+        byte[] sig = crypto.getSignature(signature);
 
-        if (!crypto.validateMessage(pubKey, message, signatureBytes))
-            throw new SignatureNotValidException();
+        if (!crypto.validateMessage(pubKey, message, sig))
+            throwError(INVALID_SIGNATURE, nonce + 1);
 
         User user = users.get(pubKey);
-        validateNonce(user, nonce, timestamp);
+
+        if(!validateNonce(user, nonce, timestamp))
+            throwError(INVALID_NONCE, nonce + 1);
 
         LinkedList<Transfer> pendingTransfers = user.getPendingTransfers();
         int oldBalance = user.getBalance();
@@ -170,18 +178,24 @@ public class Server implements Serializable {
                 .build();
     }
 
-    public synchronized AuditResponse audit(ByteString checkKeyString) throws AccountDoesNotExistsException {
+    public synchronized AuditResponse audit(ByteString checkKeyString, long nonce, long timestamp)  {
         PublicKey pubKey = crypto.bytesToKey(checkKeyString);
 
         if (!(users.containsKey(pubKey)))
-            throw new AccountDoesNotExistsException();
+            throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
+
+        User user = users.get(pubKey);
+
+        if(!validateNonce(user, nonce, timestamp))
+            throwError(INVALID_NONCE, nonce + 1);
 
         LinkedList<Transfer> totalTransfers = users.get(pubKey).getTotalTransfers();
         String transfers = totalTransfers.isEmpty() ? "No transfers waiting to be accepted" : getTransfersAsString(totalTransfers);
 
         return AuditResponse.newBuilder()
                 .setTransferHistory(transfers)
-                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, transfers)))
+                .setNonce(nonce + 1)
+                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, transfers + (nonce + 1))))
                 .build();
     }
 
@@ -215,35 +229,20 @@ public class Server implements Serializable {
         return pendingTransfers.stream().map(Transfer::toString).collect(Collectors.joining());
     }
 
-    void validateNonce(User user, long nonce, long timestamp)
-            throws NonceAlreadyUsedException, TimestampExpiredException {
-        user.getNonceManager().validateNonce(nonce, timestamp);
+    private boolean validateNonce(User user, long nonce, long timestamp) {
+        return user.getNonceManager().validateNonce(nonce, timestamp);
     }
 
-    String[] createResponse(String[] message, long nonce, long timestamp)  {
-        long newTimestamp = System.currentTimeMillis() / 1000;
-
-        String[] response = new String[message.length + 4];
-        StringBuilder m = new StringBuilder();
-
-        int i;
-        for (i = 0; i < message.length; i++) {
-            response[i] = message[i];
-            m.append(message[i]);
-        }
-
-        m.append(nonce + 1).append(timestamp).append(newTimestamp);
-        byte[] signServer = crypto.encrypt(this.sName, m.toString());
-
-        response[i] = String.valueOf(nonce + 1);
-        response[i + 1] = String.valueOf(timestamp);
-        response[i + 2] = String.valueOf(newTimestamp);
-        response[i + 3] = new String(signServer, StandardCharsets.ISO_8859_1);
-
-        return response;
-    }
-
-    void initServerKeys() {
+    private void initServerKeys() {
         this.crypto.getKey(this.sName);
+    }
+
+    private void throwError(ErrorMessage errorMessage, long nonce) {
+        throw new ServerStatusRuntimeException(
+                Status.INTERNAL,
+                errorMessage.label,
+                nonce,
+                crypto.encrypt(this.sName, errorMessage.label + nonce)
+        );
     }
 }

@@ -215,6 +215,7 @@ public class Crypto {
         return null;
     }
 
+
     public boolean validateMessage(PublicKey key, String message, byte[] signature)  {
 
         Signature sign;
@@ -232,5 +233,21 @@ public class Crypto {
         }
 
         return false;
+    }
+
+    public byte[] getSignature(ByteString res) {
+
+        byte[] signature = new byte[256];
+        res.copyTo(signature, 0);
+        return signature;
+
+    }
+
+    public long generateNonce() {
+        return new SecureRandom().nextLong();
+    }
+
+    public long generateTimestamp() {
+        return System.currentTimeMillis() / 1000;
     }
 }

@@ -4,13 +4,12 @@ import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
 import pt.tecnico.bank.client.exceptions.AccountAlreadyExistsException;
 import pt.tecnico.bank.client.exceptions.InvalidAmountException;
-import pt.tecnico.bank.crypto.Crypto;
 import pt.tecnico.bank.client.frontend.Frontend;
+import pt.tecnico.bank.crypto.Crypto;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 import java.security.Key;
 import java.security.PublicKey;
-import java.security.SecureRandom;
 
 public class Client {
 
@@ -19,7 +18,6 @@ public class Client {
 
     private final Frontend frontend;
     private final Crypto crypto;
-    private final int VALIDITY_INTERVAL = 60 * 10;
 
     public Client(String username, String password, int nByzantineServers) {
         this.crypto = new Crypto(username, password, true);
@@ -54,24 +52,12 @@ public class Client {
 
             OpenAccountResponse res = frontend.openAccount(req);
 
-            /*boolean ack = res.getAck();
-            ByteString keyString = res.getPublicKey();
-            byte[] key = new byte[698];
-            keyString.copyTo(key, 0);
-            byte[] newSignature = new byte[256];
-            res.getSignature().copyTo(newSignature, 0);
-
-            String message = ack + pubKey.toString();
-
-           /* if (!crypto.validateMessage(crypto.getPublicKey(), message, newSignature))
-                return mimWarn();*/
-
         } catch (StatusRuntimeException e) {
-            e.printStackTrace();
             return handleError(e);
         } catch (AccountAlreadyExistsException e) {
             return ANSI_RED + e.getMessage();
         }
+
         return ANSI_GREEN + "Account with name " + accountName + " created";
     }
 
@@ -79,8 +65,9 @@ public class Client {
         try {
             if (amount < 0)
                 throw new InvalidAmountException();
-            long nonce = new SecureRandom().nextLong();
-            long timestamp = System.currentTimeMillis() / 1000;
+
+            long nonce = crypto.generateNonce();
+            long timestamp = crypto.generateTimestamp();
 
             PublicKey origKey = crypto.getPublicKey(senderAccount);
             PublicKey destKey = crypto.getPublicKey(receiverAccount);
@@ -99,20 +86,6 @@ public class Client {
                     .build();
             SendAmountResponse response = frontend.sendAmount(req);
 
-            /*boolean ack = response.getAck();
-            long recvTimestamp = response.getRecvTimestamp();
-            long newTimestamp = response.getNewTimestamp();
-            long newNonce = response.getNonce();
-            ByteString sig = response.getSignature();
-            byte[] newSignature = new byte[256];
-            sig.copyTo(newSignature, 0);
-
-            String newMessage = ack + origKey.toString() + newNonce + timestamp + newTimestamp;
-
-            /*if (!(crypto.validateMessage(crypto.getPublicKey(), newMessage, newSignature) &&
-                    ack && recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce))
-                return mimWarn();*/
-
         } catch (StatusRuntimeException e) {
             return handleError(e);
         } catch (InvalidAmountException e) {
@@ -126,26 +99,21 @@ public class Client {
         String transfers;
 
         try {
+            long nonce = crypto.generateNonce();
+            long timestamp = crypto.generateTimestamp();
+
             PublicKey key = crypto.getPublicKey(checkAccountName);
-            CheckAccountRequest req = CheckAccountRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded()))
+
+            CheckAccountRequest req = CheckAccountRequest.newBuilder()
+                    .setNonce(nonce)
+                    .setTimestamp(timestamp)
+                    .setPublicKey(ByteString.copyFrom(key.getEncoded()))
                     .build();
             CheckAccountResponse res = frontend.checkAccount(req);
 
             balance = res.getBalance();
             pendentAmount = res.getPendentAmount();
             transfers = res.getPendentTransfers();
-           /*long newTimestamp = res.getNewTimestamp();
-            ByteString sig = res.getSignature();
-            byte[] newSignature = new byte[256];
-            sig.copyTo(newSignature, 0);
-
-            String newMessage = String.valueOf(balance) + pendentAmount + transfers + newTimestamp;
-
-            long timeValidity = System.currentTimeMillis() / 1000 - newTimestamp;
-
-            /*if (!(crypto.validateResponse(crypto.getPublicKey("server"), newMessage, newSignature)
-                    && timeValidity <= VALIDITY_INTERVAL))
-                return mimWarn();*/
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -159,8 +127,8 @@ public class Client {
     public String receive_amount(String accountName) {
         int recvAmount;
         try {
-            long nonce = new SecureRandom().nextLong();
-            long timestamp = System.currentTimeMillis() / 1000;
+            long nonce = crypto.generateNonce();
+            long timestamp = crypto.generateTimestamp();
 
             PublicKey key = crypto.getPublicKey(accountName);
 
@@ -175,20 +143,7 @@ public class Client {
                     .setTimestamp(timestamp)
                     .build();
             ReceiveAmountResponse response = frontend.receiveAmount(req);
-
             recvAmount = response.getRecvAmount();
-            /*long recvTimestamp = response.getRecvTimestamp();
-            long newTimestamp = response.getNewTimestamp();
-            long newNonce = response.getNonce();
-            ByteString sig = response.getSignature();
-            byte[] newSignature = new byte[256];
-            sig.copyTo(newSignature, 0);
-
-            String newMessage = recvAmount + key.toString() + newNonce + timestamp + newTimestamp;
-
-            /*if (!(crypto.validateResponse(crypto.getPublicKey("server"), newMessage, newSignature) &&
-                    recvTimestamp == timestamp && newTimestamp - timestamp < 600 && nonce + 1 == newNonce))
-                return mimWarn();*/
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -199,25 +154,22 @@ public class Client {
 
     public String audit(String checkAccountName) {
         String transfers;
+
         try {
+
+            long nonce = crypto.generateNonce();
+            long timestamp = crypto.generateTimestamp();
+
             PublicKey key = crypto.getPublicKey(checkAccountName);
 
-            AuditRequest req = AuditRequest.newBuilder().setPublicKey(ByteString.copyFrom(key.getEncoded()))
+            AuditRequest req = AuditRequest.newBuilder()
+                    .setNonce(nonce)
+                    .setTimestamp(timestamp)
+                    .setPublicKey(ByteString.copyFrom(key.getEncoded()))
                     .build();
             AuditResponse res = frontend.audit(req);
 
             transfers = res.getTransferHistory();
-           /* long newTimestamp = res.getNewTimestamp();
-            ByteString sig = res.getSignature();
-            byte[] newSignature = new byte[256];
-            sig.copyTo(newSignature, 0);
-
-            long timeValidity = System.currentTimeMillis() / 1000 - newTimestamp;
-            String newMessage = transfers + newTimestamp;
-
-            /*if (!(crypto.validateResponse(crypto.getPublicKey("server"), newMessage, newSignature)
-                    && timeValidity <= VALIDITY_INTERVAL))
-                return mimWarn();*/
 
         } catch (StatusRuntimeException e) {
             return handleError(e);

@@ -7,11 +7,13 @@ import java.util.concurrent.CountDownLatch;
 public class Observer<R> implements StreamObserver<R> {
 
     final ResponseCollector resCollector;
+    final ResponseCollector exceptions;
     final CountDownLatch finishLatch;
     final String sName;
 
-    public Observer(ResponseCollector resCollector, CountDownLatch fLatch, String sName) {
+    public Observer(ResponseCollector resCollector, ResponseCollector exceptions, CountDownLatch fLatch, String sName) {
         this.resCollector = resCollector;
+        this.exceptions = exceptions;
         this.finishLatch = fLatch;
         this.sName = sName;
     }
@@ -27,6 +29,9 @@ public class Observer<R> implements StreamObserver<R> {
     @Override
     public void onError(Throwable throwable) {
         System.out.println("Received error: " + throwable);
+        if(this.exceptions != null) {
+            this.exceptions.addResponse(sName, throwable);
+        }
         finishLatch.countDown();
     }
 
