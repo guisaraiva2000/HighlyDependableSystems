@@ -6,16 +6,20 @@ import pt.tecnico.bank.crypto.Crypto;
 import pt.tecnico.bank.server.domain.adeb.AdebFrontend;
 import pt.tecnico.bank.server.domain.exceptions.ErrorMessage;
 import pt.tecnico.bank.server.domain.exceptions.ServerStatusRuntimeException;
-import pt.tecnico.bank.server.grpc.Adeb.*;
+import pt.tecnico.bank.server.grpc.Adeb.ReadyRequest;
+import pt.tecnico.bank.server.grpc.Adeb.EchoRequest;
 import pt.tecnico.bank.server.grpc.Adeb.EchoResponse;
 import pt.tecnico.bank.server.grpc.Adeb.ReadyResponse;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 import java.io.Serializable;
 import java.security.PublicKey;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import static pt.tecnico.bank.server.domain.exceptions.ErrorMessage.*;
@@ -30,20 +34,37 @@ public class ServerBackend implements Serializable {
     private final StateManager stateManager;
     private final Crypto crypto;
     private final String sName;
-    private final AdebFrontend adebFrontend;
+
+    public static final Object lockingObject=new Object();
+
 
     // ADEB
-    private ByteString input;
+    private final AdebFrontend adebFrontend;
+    private final int byzantineEchoQuorum;
+    private final int byzantineReadyQuorum;
+    private final int nByzantineServers;
+    private byte[] input = null;
+    private boolean sentEcho = false;
+    private boolean sentReady = false;
+    private boolean delivered = false;
+    private final NonceManager nonceManager = new NonceManager();;
+    private final List<byte[]> echos = new ArrayList<>();
+    private final List<byte[]> readys = new ArrayList<>();
+    CountDownLatch latch = new CountDownLatch(1);
 
     public ServerBackend(String sName, int nByzantineServers) {
         this.sName = sName;
+        this.nByzantineServers = nByzantineServers;
         this.stateManager = new StateManager(sName);
 
         this.crypto = new Crypto(sName, sName, false);
         this.users = stateManager.loadState();
 
         this.adebFrontend = new AdebFrontend(nByzantineServers, crypto);
-        this.input = null;
+
+        int nServers = 3 * nByzantineServers + 1;
+        this.byzantineEchoQuorum = (nServers + nByzantineServers) / 2;      //  > (N + f) / 2
+        this.byzantineReadyQuorum = 2 * nByzantineServers;                  //  > 2f
 
         initServerKeys();
     }
@@ -52,7 +73,7 @@ public class ServerBackend implements Serializable {
 
         PublicKey pubKeyBytes = crypto.bytesToKey(pubKey);
 
-        byte[] sig = crypto.getSignature(signature);
+        byte[] sig = crypto.byteStringToByteArray(signature);
 
         if (users.containsKey(pubKeyBytes))
             throwError(ACCOUNT_ALREADY_EXISTS, 0);
@@ -87,17 +108,18 @@ public class ServerBackend implements Serializable {
 
         String message = sourceKey + destinationKey.toString() + amount + nonce + timestamp;
 
-        byte[] sig = crypto.getSignature(signature);
+        byte[] sig = crypto.byteStringToByteArray(signature);
 
         if (!crypto.validateMessage(sourceKey, message, sig))
             throwError(INVALID_SIGNATURE, nonce + 1);
 
-        // ADEB
-        performAdeb(signature);
+
+        runAdeb(sig);   // ADEB!!!!
+
 
         User sourceUser = users.get(sourceKey);
 
-        if(!validateNonce(sourceUser, nonce, timestamp))
+        if(!validateUserNonce(sourceUser, nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
         if (sourceUser.getBalance() + sourceUser.getPendentAmount() < amount)
@@ -123,7 +145,7 @@ public class ServerBackend implements Serializable {
 
         User user = users.get(pubKeyBytes);
 
-        if(!validateNonce(user, nonce, timestamp))
+        if(!validateUserNonce(user, nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
         String pendingTransfersAsString = null;
@@ -154,14 +176,18 @@ public class ServerBackend implements Serializable {
 
         String message = pubKey.toString() + nonce + timestamp;
 
-        byte[] sig = crypto.getSignature(signature);
+        byte[] sig = crypto.byteStringToByteArray(signature);
 
         if (!crypto.validateMessage(pubKey, message, sig))
             throwError(INVALID_SIGNATURE, nonce + 1);
 
+
+        runAdeb(sig);   // ADEB!!!!
+
+
         User user = users.get(pubKey);
 
-        if(!validateNonce(user, nonce, timestamp))
+        if(!validateUserNonce(user, nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
         LinkedList<Transfer> pendingTransfers = user.getPendingTransfers();
@@ -197,7 +223,7 @@ public class ServerBackend implements Serializable {
 
         User user = users.get(pubKey);
 
-        if(!validateNonce(user, nonce, timestamp))
+        if(!validateUserNonce(user, nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
         LinkedList<Transfer> totalTransfers = users.get(pubKey).getTotalTransfers();
@@ -212,51 +238,152 @@ public class ServerBackend implements Serializable {
 
     // ----------------------------------- ADEB -------------------------------------
 
-    // backend aka receive
-    public EchoResponse echo(ByteString pubKeyString, ByteString signature, long nonce, ByteString input) {
-        // verificar assinatura e nonce
-        // verifico se input == meu input
-        // return true
-        // return echoresponse(key, nonce, true, assinatura)
-        return null;
+
+    /* On echo request receive:
+     * check signature/nonce
+     * check if recvInput == myInput
+     *     if true -> add echo in echos
+     *     else    -> do nothing ?
+     * check if echos.size > (n+f)/2
+     *     if true -> send readys
+     */
+
+    public EchoResponse echo(ByteString pubKeyString, String sName, ByteString input, long nonce, long ts, ByteString signature) {
+
+        byte[] inputByte = crypto.byteStringToByteArray(input);
+
+        doAdebVerifications(pubKeyString, sName, inputByte, nonce, ts, signature);
+
+        if (Arrays.equals(inputByte, this.input)) {
+
+            System.out.println("The echo input from server " + sName + " is the same as mine.");
+
+            this.echos.add(inputByte);
+        }
+
+        PublicKey sKey = crypto.getPublicKey(this.sName);
+
+        if (this.echos.size() > this.byzantineEchoQuorum && !this.sentReady) {
+
+            System.out.println("Sending readys...");
+
+            sendReadys(input, sKey);
+        }
+
+        return EchoResponse.newBuilder()
+                .setKey(ByteString.copyFrom(sKey.getEncoded()))
+                .setNonce(nonce + 1)
+                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, sKey.toString() + (nonce + 1))))
+                .build();
     }
 
-    public ReadyResponse ready(ByteString pubKeyString, ByteString signature, long nonce, ByteString input) {
-        // verificar assinatura e nonce
-        // verifico se input == meu input
-        // return true
-        // return echoresponse(key, nonce, true, assinatura)
-        return null;
+
+    /* On ready request receive:
+     *  check signature/nonce
+     *  check if recvInput == myInput
+     *       if true -> add ready in readys
+     *       else    -> do nothing ?
+     *  check if readys.size > f and sentReady = false
+     *       if true -> send readys
+     *  else check if readys.size > 2f and sentReady = true and deliver = false
+     *       if true -> deliver
+     */
+
+    public ReadyResponse ready(ByteString pubKeyString, String sName, ByteString input, long nonce, long ts, ByteString signature) {
+
+        byte[] inputByte = crypto.byteStringToByteArray(input);
+
+        doAdebVerifications(pubKeyString, sName, inputByte, nonce, ts, signature);
+
+        if (Arrays.equals(inputByte, this.input)) {
+
+            System.out.println("The ready input from server " + sName + " is the same as mine.");
+
+            this.readys.add(inputByte);
+        }
+
+        PublicKey sKey = crypto.getPublicKey(this.sName);
+
+        if (this.readys.size() > this.nByzantineServers && !this.sentReady) {
+
+            System.out.println("Sending readys...");
+
+            sendReadys(input, sKey);
+
+        } else if (this.readys.size() > this.byzantineReadyQuorum && this.sentReady && !this.delivered) {
+
+            this.delivered = true;
+            this.latch.countDown();
+
+        }
+
+        return ReadyResponse.newBuilder()
+                .setKey(ByteString.copyFrom(sKey.getEncoded()))
+                .setNonce(nonce + 1)
+                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, sKey.toString() + (nonce + 1))))
+                .build();
+
     }
 
-    // frontend aka send
-    private void performAdeb(ByteString clientInput) {
-        this.input = clientInput;
+    private void sendReadys(ByteString input, PublicKey sKey) {
+        this.sentReady = true;
 
-        // echo
-        PublicKey pubKey = crypto.getPublicKey(this.sName);
-        long echoNonce = crypto.generateNonce();
-
-        String message = pubKey.toString() + clientInput + echoNonce;
-
-        byte[] signature = crypto.encrypt(sName, message);
-
-        adebFrontend.echo(EchoRequest.newBuilder()
-                .setInput(clientInput)
-                .setNonce(echoNonce)
-                .setKey(ByteString.copyFrom(pubKey.getEncoded()))
-                .setSignature(ByteString.copyFrom(signature)).build());
-
-        // ready
         long readyNonce = crypto.generateNonce();
-        message = pubKey.toString() + clientInput + readyNonce;
-        signature = crypto.encrypt(sName, message);
+        long readyTs = crypto.generateTimestamp();
+        byte[] inputBytes = crypto.byteStringToByteArray(input);
 
-        adebFrontend.ready(ReadyRequest.newBuilder()
-                .setInput(clientInput)
-                .setNonce(readyNonce)
-                .setKey(ByteString.copyFrom(pubKey.getEncoded()))
-                .setSignature(ByteString.copyFrom(signature)).build());
+        String message = sKey.toString() + this.sName + Arrays.toString(inputBytes) + readyNonce + readyTs;
+
+        byte[] readySignature = crypto.encrypt(this.sName, message);
+
+        adebFrontend.ready(
+                ReadyRequest.newBuilder()
+                        .setInput(ByteString.copyFrom(inputBytes))
+                        .setNonce(readyNonce)
+                        .setTimestamp(readyTs)
+                        .setSname(this.sName)
+                        .setKey(ByteString.copyFrom(sKey.getEncoded()))
+                        .setSignature(ByteString.copyFrom(readySignature))
+                        .build()
+        );
+
+    }
+
+
+    private void runAdeb(byte[] clientInput) {
+
+        if (!this.sentEcho) {
+
+            System.out.println("Running ADEB...\n");
+
+            this.input = clientInput;
+            this.sentEcho = true;
+
+            // echo
+            PublicKey pubKey = crypto.getPublicKey(this.sName);
+            long echoNonce = crypto.generateNonce();
+            long ts = crypto.generateTimestamp();
+
+            String message = pubKey.toString() + this.sName + Arrays.toString(clientInput) + echoNonce + ts;
+
+            byte[] signature = crypto.encrypt(this.sName, message);
+
+            adebFrontend.echo(
+                    EchoRequest.newBuilder()
+                        .setInput(ByteString.copyFrom(clientInput))
+                        .setNonce(echoNonce)
+                        .setTimestamp(ts)
+                        .setSname(this.sName)
+                        .setKey(ByteString.copyFrom(pubKey.getEncoded()))
+                        .setSignature(ByteString.copyFrom(signature)).build()
+            );
+
+            await(latch);
+            System.out.println("ADEB ENDED!! All servers synchronized\n\n");
+
+            resetAdebParameters();
+        }
+
     }
 
     // ------------------------------------ AUX -------------------------------------
@@ -289,8 +416,35 @@ public class ServerBackend implements Serializable {
         return pendingTransfers.stream().map(Transfer::toString).collect(Collectors.joining());
     }
 
-    private boolean validateNonce(User user, long nonce, long timestamp) {
+    private boolean validateUserNonce(User user, long nonce, long timestamp) {
         return user.getNonceManager().validateNonce(nonce, timestamp);
+    }
+
+    private boolean validateServerNonce(long nonce, long timestamp) {
+        return this.nonceManager.validateNonce(nonce, timestamp);
+    }
+
+    private void doAdebVerifications(ByteString pubKeyString, String sName, byte[] input, long nonce, long ts, ByteString signature) {
+        PublicKey pubKey = crypto.bytesToKey(pubKeyString);
+
+        String newMessage = pubKey.toString() + sName + Arrays.toString(input) + nonce + ts;
+
+        byte[] sig = crypto.byteStringToByteArray(signature);
+
+        if  (!crypto.validateMessage(pubKey, newMessage, sig))
+            throwError(INVALID_SIGNATURE, nonce + 1);
+
+        if (!validateServerNonce(nonce, ts))
+            throwError(INVALID_NONCE, nonce + 1);
+    }
+
+    private void resetAdebParameters() {
+        this.input = null;
+        this.sentReady = false;
+        this.sentEcho = false;
+        this.delivered = false;
+        this.echos.clear();
+        this.readys.clear();
     }
 
     private void initServerKeys() {
@@ -305,4 +459,12 @@ public class ServerBackend implements Serializable {
                 crypto.encrypt(this.sName, errorMessage.label + nonce)
         );
     }
+
+    public static void await(CountDownLatch finishLatch) {
+        try {
+            finishLatch.await();
+        } catch (InterruptedException ignored) {
+        }
+    }
+
 }

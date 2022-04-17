@@ -50,7 +50,7 @@ public class ClientServerFrontend implements Closeable {
 
     private void pingWorker(PingRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, ServerServiceStub stub) {
         try {
-            stub.withDeadlineAfter(2, TimeUnit.SECONDS)
+            stub.withDeadlineAfter(10, TimeUnit.SECONDS)
                     .ping(request, new ClientObserver<>(resCol, exceptions, finishLatch, stub.getChannel().authority()));
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
@@ -79,7 +79,7 @@ public class ClientServerFrontend implements Closeable {
 
     private void openAccountWorker(OpenAccountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
         try {
-            stubs.get(sName).withDeadlineAfter(2, TimeUnit.SECONDS)
+            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
                     .openAccount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
@@ -94,7 +94,7 @@ public class ClientServerFrontend implements Closeable {
             OpenAccountResponse res = (OpenAccountResponse) resCol.responses.get(sName);
 
             Key pubKey = crypto.bytesToKey(res.getPublicKey());
-            byte[] newSignature = crypto.getSignature(res.getSignature());
+            byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
 
             String message = pubKey.toString();
 
@@ -138,7 +138,7 @@ public class ClientServerFrontend implements Closeable {
 
             Key pubKey = crypto.bytesToKey(res.getPublicKey());
             long newNonce = res.getNonce();
-            byte[] newSignature = crypto.getSignature(res.getSignature());
+            byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
 
             String newMessage = pubKey.toString() + newNonce;
 
@@ -154,7 +154,7 @@ public class ClientServerFrontend implements Closeable {
 
     private void sendAmountWorker(SendAmountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
         try {
-            stubs.get(sName).withDeadlineAfter(2, TimeUnit.SECONDS)
+            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
                     .sendAmount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
@@ -183,7 +183,7 @@ public class ClientServerFrontend implements Closeable {
 
     private void checkAccountWorker(CheckAccountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
         try {
-            stubs.get(sName).withDeadlineAfter(2, TimeUnit.SECONDS)
+            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
                     .checkAccount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
@@ -200,7 +200,7 @@ public class ClientServerFrontend implements Closeable {
             int pendentAmount = res.getPendentAmount();
             String transfers = res.getPendentTransfers();
             long newNonce = res.getNonce();
-            byte[] newSignature = crypto.getSignature(res.getSignature());
+            byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
 
             String newMessage = String.valueOf(balance) + pendentAmount + transfers + newNonce;
 
@@ -237,7 +237,7 @@ public class ClientServerFrontend implements Closeable {
 
     private void receiveAmountWorker(ReceiveAmountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
         try {
-            stubs.get(sName).withDeadlineAfter(2, TimeUnit.SECONDS)
+            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
                     .receiveAmount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
@@ -252,7 +252,7 @@ public class ClientServerFrontend implements Closeable {
             ReceiveAmountResponse res = (ReceiveAmountResponse) resCol.responses.get(sName);
 
             Key pubKey = crypto.bytesToKey(res.getPublicKey());
-            byte[] newSignature = crypto.getSignature(res.getSignature());
+            byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
             long newNonce = res.getNonce();
 
             String newMessage = res.getRecvAmount() + pubKey.toString() + newNonce;
@@ -291,7 +291,7 @@ public class ClientServerFrontend implements Closeable {
 
     private void auditWorker(AuditRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
         try {
-            stubs.get(sName).withDeadlineAfter(2, TimeUnit.SECONDS)
+            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
                     .audit(request, new ClientObserver<>(resCol, exceptions, finishLatch,sName));
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
@@ -307,7 +307,7 @@ public class ClientServerFrontend implements Closeable {
 
             String transfers = res.getTransferHistory();
             long newNonce = res.getNonce();
-            byte[] newSignature = crypto.getSignature(res.getSignature());
+            byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
 
             String newMessage = transfers + newNonce;
 
@@ -345,7 +345,7 @@ public class ClientServerFrontend implements Closeable {
 
                     String errorMsg = errorResponse.getErrorMsg();
                     long newNonce = errorResponse.getNonce();
-                    byte[] signature = crypto.getSignature(errorResponse.getSignature());
+                    byte[] signature = crypto.byteStringToByteArray(errorResponse.getSignature());
 
                     String message = errorMsg + newNonce;
 

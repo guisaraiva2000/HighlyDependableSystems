@@ -20,7 +20,7 @@ public class ClientObserver<R> implements StreamObserver<R> {
 
     @Override
     public void onNext(R r) {
-        System.out.println("Received " + /*r.toString().replace('\n', ' ')+*/ "from server " + this.sName);
+        //System.out.println("Received " + /*r.toString().replace('\n', ' ')+*/ "from server " + this.sName);
         if(this.resCollector != null) {
             this.resCollector.addResponse(sName, r);
         }
@@ -28,7 +28,7 @@ public class ClientObserver<R> implements StreamObserver<R> {
 
     @Override
     public void onError(Throwable throwable) {
-        System.out.println("Received error: " + throwable);
+        //System.out.println("Received error: " + throwable);
         if(this.exceptions != null) {
             this.exceptions.addResponse(sName, throwable);
         }
@@ -37,7 +37,7 @@ public class ClientObserver<R> implements StreamObserver<R> {
 
     @Override
     public void onCompleted() {
-        System.out.println("Request completed from server " + this.sName);
+        //System.out.println("Request completed from server " + this.sName);
         finishLatch.countDown();
     }
 }

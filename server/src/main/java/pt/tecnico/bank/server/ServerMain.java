@@ -1,6 +1,5 @@
 package pt.tecnico.bank.server;
 
-import io.grpc.BindableService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import pt.tecnico.bank.server.domain.ServerBackend;
@@ -22,8 +21,6 @@ public class ServerMain {
 		try {
 
 			ServerBackend serverBackend = new ServerBackend(sName, nByzantineServers);
-
-			final BindableService impl = new ServerServiceImpl(serverBackend);
 
 			// Create a new server to listen on port
 			Server server = ServerBuilder.forPort(port)

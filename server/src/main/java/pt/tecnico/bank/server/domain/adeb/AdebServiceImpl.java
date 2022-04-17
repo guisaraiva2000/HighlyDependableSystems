@@ -20,10 +20,12 @@ public class AdebServiceImpl extends AdebServiceGrpc.AdebServiceImplBase {
     }
 
     @Override
-    public void echo(EchoRequest request, StreamObserver<EchoResponse> responseObserver) {
+    public void echo(EchoRequest req, StreamObserver<EchoResponse> responseObserver) {
         try {
 
-            responseObserver.onNext(serverBackend.echo(request.getKey(), request.getSignature(), request.getNonce(), request.getInput()));
+            responseObserver.onNext(
+                serverBackend.echo(req.getKey(), req.getSname(), req.getInput(), req.getNonce(), req.getTimestamp(), req.getSignature())
+            );
             responseObserver.onCompleted();
 
         } catch (ServerStatusRuntimeException e) {
@@ -32,10 +34,12 @@ public class AdebServiceImpl extends AdebServiceGrpc.AdebServiceImplBase {
     }
 
     @Override
-    public void ready(ReadyRequest request, StreamObserver<ReadyResponse> responseObserver) {
+    public void ready(ReadyRequest req, StreamObserver<ReadyResponse> responseObserver) {
         try {
 
-            responseObserver.onNext(serverBackend.ready(request.getKey(), request.getSignature(), request.getNonce(), request.getInput()));
+            responseObserver.onNext(
+                serverBackend.ready(req.getKey(), req.getSname(), req.getInput(), req.getNonce(), req.getTimestamp(), req.getSignature())
+            );
             responseObserver.onCompleted();
 
         } catch (ServerStatusRuntimeException e) {

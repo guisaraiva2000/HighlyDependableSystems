@@ -24,54 +24,47 @@ public class AdebObserver<R> implements StreamObserver<R> {
 
     @Override
     public void onNext(R r) {
-        System.out.println("Received " + /*r.toString().replace('\n', ' ')+*/ "from server " + this.sName);
-
         if(r instanceof EchoResponse) {
-            addEcho((EchoResponse) r);
+            receiveEchoResponses((EchoResponse) r);
         } else if (r instanceof ReadyResponse) {
-            addReady((ReadyResponse) r);
+            receiveReadyResponses((ReadyResponse) r);
         }
     }
 
     @Override
     public void onError(Throwable throwable) {
-        System.out.println("Received error: " + throwable);
-        //finishLatch.countDown();
+        //System.out.println("Received error: " + throwable);
+        finishLatch.countDown();
     }
 
     @Override
     public void onCompleted() {
-        System.out.println("Request completed from server " + this.sName);
-        //finishLatch.countDown();
     }
 
 
-    private void addEcho(EchoResponse res) {
+    private void receiveEchoResponses(EchoResponse res) {
 
         Key pubKey = crypto.bytesToKey(res.getKey());
-        boolean ack = res.getAck();
-        byte[] newSignature = crypto.getSignature(res.getSignature());
+        byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
         long echoNonce = res.getNonce();
 
-        String newMessage = pubKey.toString() + ack + echoNonce;
-
-        if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature) && nonce + 1 == echoNonce)
-            if(ack)
-                finishLatch.countDown();
+        validateResponse(pubKey, newSignature, echoNonce);
     }
 
-    private void addReady(ReadyResponse res) {
+    private void receiveReadyResponses(ReadyResponse res) {
 
         Key pubKey = crypto.bytesToKey(res.getKey());
-        boolean ack = res.getAck();
-        byte[] newSignature = crypto.getSignature(res.getSignature());
-        long echoNonce = res.getNonce();
+        byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
+        long readyNonce = res.getNonce();
 
-        String newMessage = pubKey.toString() + ack + echoNonce;
+        validateResponse(pubKey, newSignature, readyNonce);
+    }
+
+    private void validateResponse(Key pubKey,byte[] newSignature, long echoNonce) {
+        String newMessage = pubKey.toString() + echoNonce;
 
         if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature) && nonce + 1 == echoNonce)
-            if(ack)
-                finishLatch.countDown();
+            finishLatch.countDown();
     }
 
 

@@ -6,30 +6,32 @@ package pt.tecnico.bank.server.grpc;
 
 message EchoRequest {
   bytes key = 1;
-  bytes input = 2;
-  int64 nonce = 3;
-  bytes signature = 4;
+  string sname = 2;
+  bytes input = 3;
+  int64 nonce = 4;
+  int64 timestamp = 5;
+  bytes signature = 6;
 }
 
 message EchoResponse {
   bytes key = 1;
-  bool ack = 2;
-  int64 nonce = 3;
-  bytes signature = 4;
+  int64 nonce = 2;
+  bytes signature = 3;
 }
 
 message ReadyRequest {
   bytes key = 1;
-  bytes input = 2;
-  int64 nonce = 3;
-  bytes signature = 4;
+  string sname = 2;
+  bytes input = 3;
+  int64 nonce = 4;
+  int64 timestamp = 5;
+  bytes signature = 6;
 }
 
 message ReadyResponse {
   bytes key = 1;
-  bool ack = 2;
-  int64 nonce = 3;
-  bytes signature = 4;
+  int64 nonce = 2;
+  bytes signature = 3;
 }
 
 service AdebService {

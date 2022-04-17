@@ -235,7 +235,7 @@ public class Crypto {
         return false;
     }
 
-    public byte[] getSignature(ByteString res) {
+    public byte[] byteStringToByteArray(ByteString res) {
 
         byte[] signature = new byte[256];
         res.copyTo(signature, 0);

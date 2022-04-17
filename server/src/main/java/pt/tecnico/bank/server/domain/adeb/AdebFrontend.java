@@ -40,12 +40,12 @@ public class AdebFrontend implements Closeable {
 
         this.stubs.keySet().forEach( sName -> echoWorker(request, finishLatch, sName));
 
-        await(finishLatch); // waits for 2f+1 correct responses from servers
+        await(finishLatch);
     }
 
     private void echoWorker(EchoRequest request, CountDownLatch finishLatch, String sName) {
         try {
-            stubs.get(sName).withDeadlineAfter(2, TimeUnit.SECONDS)
+            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
                     .echo(request, new AdebObserver<>(finishLatch, sName, this.crypto, request.getNonce()));
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
@@ -58,34 +58,21 @@ public class AdebFrontend implements Closeable {
 
         this.stubs.keySet().forEach( sName -> readyWorker(request, finishLatch, sName));
 
-        await(finishLatch); // waits for 2f + 1 correct responses from servers
+        await(finishLatch);
 
-        // todo f+1 shit
     }
 
     private void readyWorker(ReadyRequest request, CountDownLatch finishLatch, String sName) {
         try {
-            stubs.get(sName).withDeadlineAfter(2, TimeUnit.SECONDS)
+            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
                     .ready(request, new AdebObserver<>(finishLatch, sName, this.crypto, request.getNonce()));
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
         }
     }
 
-    // TODO echo
-        // enviar servidores
-        // esperar quorum
-        // depois de 2f+1
-        // devolver ao server
-
-    // TODO ready
-        // assinar input
-        // enviar
-        // esperar quorum
-        // depois de 2f
-        // devolver ao server
-
     // aux
+
     private void exceptionHandler(StatusRuntimeException sre) {
         if (sre.getStatus().getCode() != Status.DEADLINE_EXCEEDED.getCode())
             throw sre;
@@ -93,7 +80,6 @@ public class AdebFrontend implements Closeable {
         System.out.println("Request dropped.\nResending...");
 
     }
-
 
     private void createNewChannel(int index) {
         try {
@@ -105,7 +91,6 @@ public class AdebFrontend implements Closeable {
                     + sre.getMessage());
         }
     }
-
 
     public static void await(CountDownLatch finishLatch) {
         try {
