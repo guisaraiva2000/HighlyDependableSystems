@@ -18,9 +18,8 @@ message OpenAccountRequest {
 }
 
 message OpenAccountResponse {
-  bool ack = 1;
-  bytes public_key = 2;
-  bytes signature = 3;
+  bytes public_key = 1;
+  bytes signature = 2;
 }
 
 message SendAmountRequest {
@@ -33,10 +32,9 @@ message SendAmountRequest {
 }
 
 message SendAmountResponse {
-  bool ack = 1;
-  bytes public_key = 2;
-  int64 nonce = 3;
-  bytes signature = 4;
+  bytes public_key = 1;
+  int64 nonce = 2;
+  bytes signature = 3;
 }
 
 message CheckAccountRequest {
@@ -62,11 +60,10 @@ message ReceiveAmountRequest {
 }
 
 message ReceiveAmountResponse {
-  bool ack = 1;
-  int32 recv_amount = 2;
-  bytes public_key = 3;
-  int64 nonce = 4;
-  bytes signature = 5;
+  int32 recv_amount = 1;
+  bytes public_key = 2;
+  int64 nonce = 3;
+  bytes signature = 4;
 }
 
 message AuditRequest {

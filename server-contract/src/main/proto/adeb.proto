@@ -1,0 +1,38 @@
+//
+// Protocol buffers definition
+//
+syntax = "proto3";
+package pt.tecnico.bank.server.grpc;
+
+message EchoRequest {
+  bytes key = 1;
+  bytes input = 2;
+  int64 nonce = 3;
+  bytes signature = 4;
+}
+
+message EchoResponse {
+  bytes key = 1;
+  bool ack = 2;
+  int64 nonce = 3;
+  bytes signature = 4;
+}
+
+message ReadyRequest {
+  bytes key = 1;
+  bytes input = 2;
+  int64 nonce = 3;
+  bytes signature = 4;
+}
+
+message ReadyResponse {
+  bytes key = 1;
+  bool ack = 2;
+  int64 nonce = 3;
+  bytes signature = 4;
+}
+
+service AdebService {
+  rpc echo(EchoRequest) returns (EchoResponse);
+  rpc ready(ReadyRequest) returns (ReadyResponse);
+}

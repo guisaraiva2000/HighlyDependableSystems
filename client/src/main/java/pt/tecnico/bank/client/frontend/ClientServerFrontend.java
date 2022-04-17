@@ -14,14 +14,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 
-public class Frontend implements Closeable {
+public class ClientServerFrontend implements Closeable {
 
     private final List<ManagedChannel> channels;
     private final Map<String, ServerServiceStub> stubs;
     private final Crypto crypto;
     private final int byzantineQuorum;
 
-    public Frontend(int nByzantineServers, Crypto crypto) {
+    public ClientServerFrontend(int nByzantineServers, Crypto crypto) {
         this.stubs = new HashMap<>();
         this.channels = new ArrayList<>();
         this.byzantineQuorum = 2 * nByzantineServers + 1;
@@ -51,7 +51,7 @@ public class Frontend implements Closeable {
     private void pingWorker(PingRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, ServerServiceStub stub) {
         try {
             stub.withDeadlineAfter(2, TimeUnit.SECONDS)
-                    .ping(request, new Observer<>(resCol, exceptions, finishLatch, stub.getChannel().authority()));
+                    .ping(request, new ClientObserver<>(resCol, exceptions, finishLatch, stub.getChannel().authority()));
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
         }
@@ -80,7 +80,7 @@ public class Frontend implements Closeable {
     private void openAccountWorker(OpenAccountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
         try {
             stubs.get(sName).withDeadlineAfter(2, TimeUnit.SECONDS)
-                    .openAccount(request, new Observer<>(resCol, exceptions, finishLatch, sName));
+                    .openAccount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
         }
@@ -93,13 +93,12 @@ public class Frontend implements Closeable {
 
             OpenAccountResponse res = (OpenAccountResponse) resCol.responses.get(sName);
 
-            boolean ack = res.getAck();
             Key pubKey = crypto.bytesToKey(res.getPublicKey());
             byte[] newSignature = crypto.getSignature(res.getSignature());
 
-            String message = ack + pubKey.toString();
+            String message = pubKey.toString();
 
-            if (crypto.validateMessage(crypto.getPublicKey(sName), message, newSignature) && ack) {
+            if (crypto.validateMessage(crypto.getPublicKey(sName), message, newSignature)) {
                 openAccountResponses.add(res);
             } else {
                 resCol.responses.remove(sName);
@@ -137,14 +136,13 @@ public class Frontend implements Closeable {
 
             SendAmountResponse res = (SendAmountResponse) resCol.responses.get(sName);
 
-            boolean ack = res.getAck();
             Key pubKey = crypto.bytesToKey(res.getPublicKey());
             long newNonce = res.getNonce();
             byte[] newSignature = crypto.getSignature(res.getSignature());
 
-            String newMessage = ack + pubKey.toString() + newNonce;
+            String newMessage = pubKey.toString() + newNonce;
 
-            if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature) && ack && nonce + 1 == newNonce) {
+            if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature) && nonce + 1 == newNonce) {
                 sendAmountResponses.add(res);
             } else {
                 resCol.responses.remove(sName);
@@ -157,7 +155,7 @@ public class Frontend implements Closeable {
     private void sendAmountWorker(SendAmountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
         try {
             stubs.get(sName).withDeadlineAfter(2, TimeUnit.SECONDS)
-                    .sendAmount(request, new Observer<>(resCol, exceptions, finishLatch, sName));
+                    .sendAmount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
         }
@@ -186,7 +184,7 @@ public class Frontend implements Closeable {
     private void checkAccountWorker(CheckAccountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
         try {
             stubs.get(sName).withDeadlineAfter(2, TimeUnit.SECONDS)
-                    .checkAccount(request, new Observer<>(resCol, exceptions, finishLatch, sName));
+                    .checkAccount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
         }
@@ -240,7 +238,7 @@ public class Frontend implements Closeable {
     private void receiveAmountWorker(ReceiveAmountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
         try {
             stubs.get(sName).withDeadlineAfter(2, TimeUnit.SECONDS)
-                    .receiveAmount(request, new Observer<>(resCol, exceptions, finishLatch, sName));
+                    .receiveAmount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
         }
@@ -253,14 +251,13 @@ public class Frontend implements Closeable {
 
             ReceiveAmountResponse res = (ReceiveAmountResponse) resCol.responses.get(sName);
 
-            boolean ack = res.getAck();
             Key pubKey = crypto.bytesToKey(res.getPublicKey());
             byte[] newSignature = crypto.getSignature(res.getSignature());
             long newNonce = res.getNonce();
 
-            String newMessage = String.valueOf(ack) + res.getRecvAmount() + pubKey.toString() + newNonce;
+            String newMessage = res.getRecvAmount() + pubKey.toString() + newNonce;
 
-            if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature) && ack && nonce + 1 == newNonce) {
+            if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature) && nonce + 1 == newNonce) {
 
                 receiveAmountResponses.add(res);
 
@@ -295,7 +292,7 @@ public class Frontend implements Closeable {
     private void auditWorker(AuditRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
         try {
             stubs.get(sName).withDeadlineAfter(2, TimeUnit.SECONDS)
-                    .audit(request, new Observer<>(resCol, exceptions, finishLatch,sName));
+                    .audit(request, new ClientObserver<>(resCol, exceptions, finishLatch,sName));
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
         }

@@ -3,36 +3,47 @@ package pt.tecnico.bank.server.domain;
 import com.google.protobuf.ByteString;
 import io.grpc.Status;
 import pt.tecnico.bank.crypto.Crypto;
-import pt.tecnico.bank.server.domain.exceptions.*;
+import pt.tecnico.bank.server.domain.adeb.AdebFrontend;
 import pt.tecnico.bank.server.domain.exceptions.ErrorMessage;
+import pt.tecnico.bank.server.domain.exceptions.ServerStatusRuntimeException;
+import pt.tecnico.bank.server.grpc.Adeb.*;
+import pt.tecnico.bank.server.grpc.Adeb.EchoResponse;
+import pt.tecnico.bank.server.grpc.Adeb.ReadyResponse;
 import pt.tecnico.bank.server.grpc.Server.*;
-import static pt.tecnico.bank.server.domain.exceptions.ErrorMessage.*;
-
 
 import java.io.Serializable;
-import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
+import static pt.tecnico.bank.server.domain.exceptions.ErrorMessage.*;
 
 /**
  * Facade class.
  * Contains the service operations.
  */
-public class Server implements Serializable {
+public class ServerBackend implements Serializable {
 
     private final ConcurrentHashMap<PublicKey, User> users;
     private final StateManager stateManager;
     private final Crypto crypto;
     private final String sName;
+    private final AdebFrontend adebFrontend;
 
-    public Server(String sName, int port, int nByzantineServers) {
+    // ADEB
+    private ByteString input;
+
+    public ServerBackend(String sName, int nByzantineServers) {
         this.sName = sName;
         this.stateManager = new StateManager(sName);
 
         this.crypto = new Crypto(sName, sName, false);
         this.users = stateManager.loadState();
+
+        this.adebFrontend = new AdebFrontend(nByzantineServers, crypto);
+        this.input = null;
 
         initServerKeys();
     }
@@ -57,9 +68,8 @@ public class Server implements Serializable {
         stateManager.saveState(users);
 
         return OpenAccountResponse.newBuilder()
-                .setAck(true)
                 .setPublicKey(ByteString.copyFrom(pubKeyBytes.getEncoded()))
-                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, "true" + pubKeyBytes)))
+                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, String.valueOf(pubKeyBytes))))
                 .build();
     }
 
@@ -82,6 +92,9 @@ public class Server implements Serializable {
         if (!crypto.validateMessage(sourceKey, message, sig))
             throwError(INVALID_SIGNATURE, nonce + 1);
 
+        // ADEB
+        performAdeb(signature);
+
         User sourceUser = users.get(sourceKey);
 
         if(!validateNonce(sourceUser, nonce, timestamp))
@@ -96,10 +109,9 @@ public class Server implements Serializable {
         stateManager.saveState(users);
 
         return SendAmountResponse.newBuilder()
-                .setAck(true)
                 .setPublicKey(ByteString.copyFrom(sourceKey.getEncoded()))
                 .setNonce(nonce + 1)
-                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, "true" + sourceKey + (nonce + 1))))
+                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, String.valueOf(sourceKey) + (nonce + 1))))
                 .build();
     }
 
@@ -167,10 +179,9 @@ public class Server implements Serializable {
         stateManager.saveState(users);
 
         int recvAmount = user.getBalance() - oldBalance;
-        String newMessage = String.valueOf(true) + recvAmount + pubKey + (nonce + 1);
+        String newMessage = recvAmount + String.valueOf(pubKey) + (nonce + 1);
 
         return ReceiveAmountResponse.newBuilder()
-                .setAck(true)
                 .setRecvAmount(recvAmount)
                 .setPublicKey(ByteString.copyFrom(pubKey.getEncoded()))
                 .setNonce(nonce + 1)
@@ -197,6 +208,55 @@ public class Server implements Serializable {
                 .setNonce(nonce + 1)
                 .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, transfers + (nonce + 1))))
                 .build();
+    }
+
+    // ----------------------------------- ADEB -------------------------------------
+
+    // backend aka receive
+    public EchoResponse echo(ByteString pubKeyString, ByteString signature, long nonce, ByteString input) {
+        // verificar assinatura e nonce
+        // verifico se input == meu input
+        // return true
+        // return echoresponse(key, nonce, true, assinatura)
+        return null;
+    }
+
+    public ReadyResponse ready(ByteString pubKeyString, ByteString signature, long nonce, ByteString input) {
+        // verificar assinatura e nonce
+        // verifico se input == meu input
+        // return true
+        // return echoresponse(key, nonce, true, assinatura)
+        return null;
+    }
+
+    // frontend aka send
+    private void performAdeb(ByteString clientInput) {
+        this.input = clientInput;
+
+        // echo
+        PublicKey pubKey = crypto.getPublicKey(this.sName);
+        long echoNonce = crypto.generateNonce();
+
+        String message = pubKey.toString() + clientInput + echoNonce;
+
+        byte[] signature = crypto.encrypt(sName, message);
+
+        adebFrontend.echo(EchoRequest.newBuilder()
+                .setInput(clientInput)
+                .setNonce(echoNonce)
+                .setKey(ByteString.copyFrom(pubKey.getEncoded()))
+                .setSignature(ByteString.copyFrom(signature)).build());
+
+        // ready
+        long readyNonce = crypto.generateNonce();
+        message = pubKey.toString() + clientInput + readyNonce;
+        signature = crypto.encrypt(sName, message);
+
+        adebFrontend.ready(ReadyRequest.newBuilder()
+                .setInput(clientInput)
+                .setNonce(readyNonce)
+                .setKey(ByteString.copyFrom(pubKey.getEncoded()))
+                .setSignature(ByteString.copyFrom(signature)).build());
     }
 
     // ------------------------------------ AUX -------------------------------------
@@ -234,7 +294,7 @@ public class Server implements Serializable {
     }
 
     private void initServerKeys() {
-        this.crypto.getKey(this.sName);
+        this.crypto.generateKeyStore(this.sName);
     }
 
     private void throwError(ErrorMessage errorMessage, long nonce) {

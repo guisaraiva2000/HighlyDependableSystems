@@ -4,14 +4,14 @@ import io.grpc.stub.StreamObserver;
 
 import java.util.concurrent.CountDownLatch;
 
-public class Observer<R> implements StreamObserver<R> {
+public class ClientObserver<R> implements StreamObserver<R> {
 
     final ResponseCollector resCollector;
     final ResponseCollector exceptions;
     final CountDownLatch finishLatch;
     final String sName;
 
-    public Observer(ResponseCollector resCollector, ResponseCollector exceptions, CountDownLatch fLatch, String sName) {
+    public ClientObserver(ResponseCollector resCollector, ResponseCollector exceptions, CountDownLatch fLatch, String sName) {
         this.resCollector = resCollector;
         this.exceptions = exceptions;
         this.finishLatch = fLatch;

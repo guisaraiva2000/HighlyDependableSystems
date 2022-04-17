@@ -1,4 +1,4 @@
-package pt.tecnico.bank.crypto.exceptions;
+package pt.tecnico.bank.client.exceptions;
 
 public class AccountDoesNotExistsException extends Exception {
 

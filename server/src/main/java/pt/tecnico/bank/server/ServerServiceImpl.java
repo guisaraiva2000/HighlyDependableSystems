@@ -1,7 +1,7 @@
 package pt.tecnico.bank.server;
 
 import io.grpc.stub.StreamObserver;
-import pt.tecnico.bank.server.domain.Server;
+import pt.tecnico.bank.server.domain.ServerBackend;
 import pt.tecnico.bank.server.domain.exceptions.*;
 import pt.tecnico.bank.server.grpc.Server.*;
 import pt.tecnico.bank.server.grpc.ServerServiceGrpc;
@@ -11,10 +11,10 @@ import static io.grpc.Status.*;
 
 public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
 
-    private final Server server;
+    private final ServerBackend serverBackend;
 
-    public ServerServiceImpl(String sName, int port, int nByzantineServers) {
-        this.server = new Server(sName, port, nByzantineServers);
+    public ServerServiceImpl(ServerBackend serverBackend) {
+        this.serverBackend = serverBackend;
     }
 
     @Override
@@ -36,7 +36,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void openAccount(OpenAccountRequest request, StreamObserver<OpenAccountResponse> responseObserver) {
         try {
 
-            responseObserver.onNext(server.openAccount(request.getPublicKey(), request.getSignature()));
+            responseObserver.onNext(serverBackend.openAccount(request.getPublicKey(), request.getSignature()));
             responseObserver.onCompleted();
 
         } catch (ServerStatusRuntimeException e) {
@@ -48,7 +48,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void sendAmount(SendAmountRequest request, StreamObserver<SendAmountResponse> responseObserver) {
         try {
 
-            responseObserver.onNext(server.sendAmount(
+            responseObserver.onNext(serverBackend.sendAmount(
                     request.getSourceKey(),
                     request.getDestinationKey(),
                     request.getAmount(),
@@ -68,7 +68,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void checkAccount(CheckAccountRequest request, StreamObserver<CheckAccountResponse> responseObserver) {
         try {
 
-            responseObserver.onNext(server.checkAccount(request.getPublicKey(), request.getNonce(), request.getTimestamp()));
+            responseObserver.onNext(serverBackend.checkAccount(request.getPublicKey(), request.getNonce(), request.getTimestamp()));
             responseObserver.onCompleted();
 
         } catch (ServerStatusRuntimeException e) {
@@ -80,7 +80,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void receiveAmount(ReceiveAmountRequest request, StreamObserver<ReceiveAmountResponse> responseObserver) {
         try {
 
-            responseObserver.onNext(server.receiveAmount(
+            responseObserver.onNext(serverBackend.receiveAmount(
                     request.getPublicKey(),
                     request.getSignature(),
                     request.getNonce(),
@@ -97,7 +97,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void audit(AuditRequest request, StreamObserver<AuditResponse> responseObserver) {
         try {
 
-            responseObserver.onNext(server.audit(request.getPublicKey(), request.getNonce(), request.getTimestamp()));
+            responseObserver.onNext(serverBackend.audit(request.getPublicKey(), request.getNonce(), request.getTimestamp()));
             responseObserver.onCompleted();
 
         } catch (ServerStatusRuntimeException e) {

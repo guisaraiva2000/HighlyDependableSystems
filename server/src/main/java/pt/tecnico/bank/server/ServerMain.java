@@ -3,6 +3,8 @@ package pt.tecnico.bank.server;
 import io.grpc.BindableService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import pt.tecnico.bank.server.domain.ServerBackend;
+import pt.tecnico.bank.server.domain.adeb.AdebServiceImpl;
 import sun.misc.Signal;
 
 import java.util.Scanner;
@@ -18,10 +20,15 @@ public class ServerMain {
 		int nByzantineServers = Integer.parseInt(args[2]);
 
 		try {
-			final BindableService impl = new ServerServiceImpl(sName, port, nByzantineServers);
+
+			ServerBackend serverBackend = new ServerBackend(sName, nByzantineServers);
+
+			final BindableService impl = new ServerServiceImpl(serverBackend);
 
 			// Create a new server to listen on port
-			Server server = ServerBuilder.forPort(port).addService(impl).build();
+			Server server = ServerBuilder.forPort(port)
+					.addService(new ServerServiceImpl(serverBackend))
+					.addService(new AdebServiceImpl(serverBackend)).build();
 
 			// Start the server
 			server.start();

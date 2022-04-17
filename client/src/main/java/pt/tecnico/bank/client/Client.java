@@ -4,8 +4,9 @@ import com.google.protobuf.ByteString;
 import io.grpc.StatusRuntimeException;
 import pt.tecnico.bank.client.exceptions.AccountAlreadyExistsException;
 import pt.tecnico.bank.client.exceptions.InvalidAmountException;
-import pt.tecnico.bank.client.frontend.Frontend;
+import pt.tecnico.bank.client.frontend.ClientServerFrontend;
 import pt.tecnico.bank.crypto.Crypto;
+import pt.tecnico.bank.client.exceptions.AccountDoesNotExistsException;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 import java.security.Key;
@@ -16,12 +17,12 @@ public class Client {
     public final String ANSI_GREEN = "\033[0;32m";
     public final String ANSI_RED = "\033[0;31m";
 
-    private final Frontend frontend;
+    private final ClientServerFrontend frontend;
     private final Crypto crypto;
 
     public Client(String username, String password, int nByzantineServers) {
         this.crypto = new Crypto(username, password, true);
-        this.frontend = new Frontend(nByzantineServers, this.crypto);
+        this.frontend = new ClientServerFrontend(nByzantineServers, this.crypto);
     }
 
     public String ping() {
@@ -40,7 +41,7 @@ public class Client {
             if (crypto.accountExists(accountName))
                 throw new AccountAlreadyExistsException();
 
-            Key pubKey = crypto.getKey(accountName);
+            Key pubKey = crypto.generateKeyStore(accountName);
             byte[] encoded = pubKey.getEncoded();
 
             byte[] signature = crypto.encrypt(accountName, pubKey.toString());
@@ -50,7 +51,7 @@ public class Client {
                     .setSignature(ByteString.copyFrom(signature))
                     .build();
 
-            OpenAccountResponse res = frontend.openAccount(req);
+            frontend.openAccount(req);
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -63,8 +64,7 @@ public class Client {
 
     public String send_amount(String senderAccount, String receiverAccount, int amount) {
         try {
-            if (amount < 0)
-                throw new InvalidAmountException();
+            if (amount < 0) throw new InvalidAmountException();
 
             long nonce = crypto.generateNonce();
             long timestamp = crypto.generateTimestamp();
@@ -72,7 +72,10 @@ public class Client {
             PublicKey origKey = crypto.getPublicKey(senderAccount);
             PublicKey destKey = crypto.getPublicKey(receiverAccount);
 
-            String message = origKey.toString() + destKey.toString() + amount + nonce + timestamp;
+            if (origKey == null || destKey == null)
+                throw new AccountDoesNotExistsException();
+
+            String message = origKey + destKey.toString() + amount + nonce + timestamp;
 
             byte[] signature = crypto.encrypt(senderAccount, message);
 
@@ -84,11 +87,12 @@ public class Client {
                     .setNonce(nonce)
                     .setTimestamp(timestamp)
                     .build();
-            SendAmountResponse response = frontend.sendAmount(req);
+
+            frontend.sendAmount(req);
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
-        } catch (InvalidAmountException e) {
+        } catch (InvalidAmountException | AccountDoesNotExistsException e) {
             return ANSI_RED + e.getMessage();
         }
         return ANSI_GREEN + "Sent " + amount + " from " + senderAccount + " to " + receiverAccount;
@@ -104,6 +108,8 @@ public class Client {
 
             PublicKey key = crypto.getPublicKey(checkAccountName);
 
+            if (key == null) throw new AccountDoesNotExistsException();
+
             CheckAccountRequest req = CheckAccountRequest.newBuilder()
                     .setNonce(nonce)
                     .setTimestamp(timestamp)
@@ -117,7 +123,10 @@ public class Client {
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
+        } catch (AccountDoesNotExistsException e) {
+            return ANSI_RED + e.getMessage();
         }
+
         return ANSI_GREEN + "Account Status:\n\t" +
                 "- Balance: " + balance +
                 "\n\t- On hold amount to send: " + pendentAmount +
@@ -131,6 +140,8 @@ public class Client {
             long timestamp = crypto.generateTimestamp();
 
             PublicKey key = crypto.getPublicKey(accountName);
+
+            if (key == null) throw new AccountDoesNotExistsException();
 
             String message = key.toString() + nonce + timestamp;
 
@@ -147,6 +158,8 @@ public class Client {
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
+        } catch (AccountDoesNotExistsException e) {
+            return ANSI_RED + e.getMessage();
         }
 
         return ANSI_GREEN + "Amount deposited to your account: " + recvAmount;
@@ -162,6 +175,8 @@ public class Client {
 
             PublicKey key = crypto.getPublicKey(checkAccountName);
 
+            if (key == null) throw new AccountDoesNotExistsException();
+
             AuditRequest req = AuditRequest.newBuilder()
                     .setNonce(nonce)
                     .setTimestamp(timestamp)
@@ -173,6 +188,8 @@ public class Client {
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
+        } catch (AccountDoesNotExistsException e) {
+            return ANSI_RED + e.getMessage();
         }
 
         return ANSI_GREEN + "Total transfers: " + transfers.replaceAll("-", "\n\t-");
@@ -184,10 +201,6 @@ public class Client {
         } else {
             return ANSI_RED + e.getStatus().getDescription();
         }
-    }
-
-    private String mimWarn() {
-        return ANSI_RED + "WARNING! Invalid message from server. Someone might be intercepting your messages with the server.";
     }
 
     void close() {

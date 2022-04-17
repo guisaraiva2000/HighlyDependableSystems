@@ -77,7 +77,7 @@ public class Crypto {
     }
 
 
-    public Key getKey(String accountName) {
+    public Key generateKeyStore(String accountName) {
 
         try {
 
