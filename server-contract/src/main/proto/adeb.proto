@@ -14,9 +14,7 @@ message EchoRequest {
 }
 
 message EchoResponse {
-  bytes key = 1;
-  int64 nonce = 2;
-  bytes signature = 3;
+
 }
 
 message ReadyRequest {
@@ -29,9 +27,7 @@ message ReadyRequest {
 }
 
 message ReadyResponse {
-  bytes key = 1;
-  int64 nonce = 2;
-  bytes signature = 3;
+
 }
 
 service AdebService {

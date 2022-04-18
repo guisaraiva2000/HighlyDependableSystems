@@ -2,14 +2,11 @@ package pt.tecnico.bank.server.domain.adeb;
 
 import io.grpc.stub.StreamObserver;
 import pt.tecnico.bank.server.domain.ServerBackend;
-import pt.tecnico.bank.server.domain.exceptions.ServerStatusRuntimeException;
 import pt.tecnico.bank.server.grpc.Adeb.EchoRequest;
 import pt.tecnico.bank.server.grpc.Adeb.EchoResponse;
 import pt.tecnico.bank.server.grpc.Adeb.ReadyRequest;
 import pt.tecnico.bank.server.grpc.Adeb.ReadyResponse;
 import pt.tecnico.bank.server.grpc.AdebServiceGrpc;
-
-import static io.grpc.Status.INTERNAL;
 
 public class AdebServiceImpl extends AdebServiceGrpc.AdebServiceImplBase {
 
@@ -20,31 +17,17 @@ public class AdebServiceImpl extends AdebServiceGrpc.AdebServiceImplBase {
     }
 
     @Override
-    public void echo(EchoRequest req, StreamObserver<EchoResponse> responseObserver) {
-        try {
+    public synchronized void echo(EchoRequest req, StreamObserver<EchoResponse> responseObserver) {
 
-            responseObserver.onNext(
-                serverBackend.echo(req.getKey(), req.getSname(), req.getInput(), req.getNonce(), req.getTimestamp(), req.getSignature())
-            );
-            responseObserver.onCompleted();
+        serverBackend.echo(req.getKey(), req.getSname(), req.getInput(), req.getNonce(), req.getTimestamp(), req.getSignature());
 
-        } catch (ServerStatusRuntimeException e) {
-            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException(e.getTrailers()));
-        }
     }
 
     @Override
-    public void ready(ReadyRequest req, StreamObserver<ReadyResponse> responseObserver) {
-        try {
+    public synchronized void ready(ReadyRequest req, StreamObserver<ReadyResponse> responseObserver) {
 
-            responseObserver.onNext(
-                serverBackend.ready(req.getKey(), req.getSname(), req.getInput(), req.getNonce(), req.getTimestamp(), req.getSignature())
-            );
-            responseObserver.onCompleted();
+        serverBackend.ready(req.getKey(), req.getSname(), req.getInput(), req.getNonce(), req.getTimestamp(), req.getSignature());
 
-        } catch (ServerStatusRuntimeException e) {
-            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException(e.getTrailers()));
-        }
     }
 
 }

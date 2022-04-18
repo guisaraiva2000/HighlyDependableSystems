@@ -6,10 +6,8 @@ import pt.tecnico.bank.crypto.Crypto;
 import pt.tecnico.bank.server.domain.adeb.AdebFrontend;
 import pt.tecnico.bank.server.domain.exceptions.ErrorMessage;
 import pt.tecnico.bank.server.domain.exceptions.ServerStatusRuntimeException;
-import pt.tecnico.bank.server.grpc.Adeb.ReadyRequest;
 import pt.tecnico.bank.server.grpc.Adeb.EchoRequest;
-import pt.tecnico.bank.server.grpc.Adeb.EchoResponse;
-import pt.tecnico.bank.server.grpc.Adeb.ReadyResponse;
+import pt.tecnico.bank.server.grpc.Adeb.ReadyRequest;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 import java.io.Serializable;
@@ -35,8 +33,6 @@ public class ServerBackend implements Serializable {
     private final Crypto crypto;
     private final String sName;
 
-    public static final Object lockingObject=new Object();
-
 
     // ADEB
     private final AdebFrontend adebFrontend;
@@ -50,7 +46,7 @@ public class ServerBackend implements Serializable {
     private final NonceManager nonceManager = new NonceManager();;
     private final List<byte[]> echos = new ArrayList<>();
     private final List<byte[]> readys = new ArrayList<>();
-    CountDownLatch latch = new CountDownLatch(1);
+    private CountDownLatch latch;
 
     public ServerBackend(String sName, int nByzantineServers) {
         this.sName = sName;
@@ -60,11 +56,11 @@ public class ServerBackend implements Serializable {
         this.crypto = new Crypto(sName, sName, false);
         this.users = stateManager.loadState();
 
-        this.adebFrontend = new AdebFrontend(nByzantineServers, crypto);
+        this.adebFrontend = new AdebFrontend(nByzantineServers);
 
         int nServers = 3 * nByzantineServers + 1;
-        this.byzantineEchoQuorum = (nServers + nByzantineServers) / 2;      //  > (N + f) / 2
-        this.byzantineReadyQuorum = 2 * nByzantineServers;                  //  > 2f
+        this.byzantineEchoQuorum = (nServers + nByzantineServers) / 2 + 1;      //  > (N + f) / 2
+        this.byzantineReadyQuorum = 2 * nByzantineServers + 1;                  //  > 2f
 
         initServerKeys();
     }
@@ -94,7 +90,7 @@ public class ServerBackend implements Serializable {
                 .build();
     }
 
-    public synchronized SendAmountResponse sendAmount(ByteString sourceKeyString, ByteString destinationKeyString, int amount,
+    public SendAmountResponse sendAmount(ByteString sourceKeyString, ByteString destinationKeyString, int amount,
                                             long nonce, long timestamp, ByteString signature) {
 
         PublicKey sourceKey = crypto.bytesToKey(sourceKeyString);
@@ -137,7 +133,7 @@ public class ServerBackend implements Serializable {
                 .build();
     }
 
-    public synchronized CheckAccountResponse checkAccount(ByteString checkKey, long nonce, long timestamp) {
+    public CheckAccountResponse checkAccount(ByteString checkKey, long nonce, long timestamp) {
         PublicKey pubKeyBytes = crypto.bytesToKey(checkKey);
 
         if (!(users.containsKey(pubKeyBytes)))
@@ -167,7 +163,7 @@ public class ServerBackend implements Serializable {
                 .build();
     }
 
-    public synchronized ReceiveAmountResponse receiveAmount(ByteString pubKeyString, ByteString signature, long nonce, long timestamp) {
+    public ReceiveAmountResponse receiveAmount(ByteString pubKeyString, ByteString signature, long nonce, long timestamp) {
 
         PublicKey pubKey = crypto.bytesToKey(pubKeyString);
 
@@ -215,7 +211,7 @@ public class ServerBackend implements Serializable {
                 .build();
     }
 
-    public synchronized AuditResponse audit(ByteString checkKeyString, long nonce, long timestamp)  {
+    public AuditResponse audit(ByteString checkKeyString, long nonce, long timestamp)  {
         PublicKey pubKey = crypto.bytesToKey(checkKeyString);
 
         if (!(users.containsKey(pubKey)))
@@ -248,7 +244,9 @@ public class ServerBackend implements Serializable {
      *     if true -> send readys
      */
 
-    public EchoResponse echo(ByteString pubKeyString, String sName, ByteString input, long nonce, long ts, ByteString signature) {
+    public void echo(ByteString pubKeyString, String sName, ByteString input, long nonce, long ts, ByteString signature) {
+
+        System.out.println("Received echo from server " + sName);
 
         byte[] inputByte = crypto.byteStringToByteArray(input);
 
@@ -263,18 +261,12 @@ public class ServerBackend implements Serializable {
 
         PublicKey sKey = crypto.getPublicKey(this.sName);
 
-        if (this.echos.size() > this.byzantineEchoQuorum && !this.sentReady) {
+        if (this.echos.size() == this.byzantineEchoQuorum && !this.sentReady) {
 
-            System.out.println("Sending readys...");
+            System.out.println("\nSending readys from echo...");
 
             sendReadys(input, sKey);
         }
-
-        return EchoResponse.newBuilder()
-                .setKey(ByteString.copyFrom(sKey.getEncoded()))
-                .setNonce(nonce + 1)
-                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, sKey.toString() + (nonce + 1))))
-                .build();
     }
 
 
@@ -289,7 +281,9 @@ public class ServerBackend implements Serializable {
      *       if true -> deliver
      */
 
-    public ReadyResponse ready(ByteString pubKeyString, String sName, ByteString input, long nonce, long ts, ByteString signature) {
+    public void ready(ByteString pubKeyString, String sName, ByteString input, long nonce, long ts, ByteString signature) {
+
+        System.out.println("Received ready from server " + sName);
 
         byte[] inputByte = crypto.byteStringToByteArray(input);
 
@@ -310,18 +304,12 @@ public class ServerBackend implements Serializable {
 
             sendReadys(input, sKey);
 
-        } else if (this.readys.size() > this.byzantineReadyQuorum && this.sentReady && !this.delivered) {
+        } else if (this.readys.size() == this.byzantineReadyQuorum && this.sentReady && !this.delivered) {
 
             this.delivered = true;
             this.latch.countDown();
 
         }
-
-        return ReadyResponse.newBuilder()
-                .setKey(ByteString.copyFrom(sKey.getEncoded()))
-                .setNonce(nonce + 1)
-                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, sKey.toString() + (nonce + 1))))
-                .build();
 
     }
 
@@ -355,6 +343,7 @@ public class ServerBackend implements Serializable {
         if (!this.sentEcho) {
 
             System.out.println("Running ADEB...\n");
+            this.latch = new CountDownLatch(1);
 
             this.input = clientInput;
             this.sentEcho = true;
@@ -440,6 +429,7 @@ public class ServerBackend implements Serializable {
 
     private void resetAdebParameters() {
         this.input = null;
+        this.latch = null;
         this.sentReady = false;
         this.sentEcho = false;
         this.delivered = false;

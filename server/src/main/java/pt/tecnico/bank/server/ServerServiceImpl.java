@@ -45,7 +45,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     }
 
     @Override
-    public void sendAmount(SendAmountRequest request, StreamObserver<SendAmountResponse> responseObserver) {
+    public synchronized void sendAmount(SendAmountRequest request, StreamObserver<SendAmountResponse> responseObserver) {
         try {
 
             responseObserver.onNext(serverBackend.sendAmount(
@@ -77,7 +77,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     }
 
     @Override
-    public void receiveAmount(ReceiveAmountRequest request, StreamObserver<ReceiveAmountResponse> responseObserver) {
+    public synchronized void receiveAmount(ReceiveAmountRequest request, StreamObserver<ReceiveAmountResponse> responseObserver) {
         try {
 
             responseObserver.onNext(serverBackend.receiveAmount(
