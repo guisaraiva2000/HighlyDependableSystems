@@ -12,18 +12,18 @@ public class Transfer implements Serializable {
     private final PublicKey receiverKey;
     private final int wid;
     private final byte[] signature;
-    private final boolean isPending;
+    private final boolean sent;
 
 
-    public Transfer(int amount, String senderName, String receiverName, PublicKey senderKey, PublicKey receiverKey, int wid, byte[] signature, boolean isPending) {
+    public Transfer(int amount, String senderName, String receiverName, PublicKey senderKey, PublicKey receiverKey, int wid, boolean sent, byte[] signature) {
         this.amount = amount;
         this.senderName = senderName;
         this.receiverName = receiverName;
         this.senderKey = senderKey;
         this.receiverKey = receiverKey;
         this.wid = wid;
+        this.sent = sent;
         this.signature = signature;
-        this.isPending = isPending;
     }
 
     public PublicKey getReceiverKey() {
@@ -54,8 +54,8 @@ public class Transfer implements Serializable {
         return signature;
     }
 
-    public boolean isPending() {
-        return isPending;
+    public boolean isSent() {
+        return sent;
     }
 
     /*@Override

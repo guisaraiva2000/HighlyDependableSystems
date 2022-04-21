@@ -2,6 +2,7 @@ package pt.tecnico.bank.server.domain;
 
 import java.io.Serializable;
 import java.security.PublicKey;
+import java.util.Comparator;
 import java.util.LinkedList;
 
 public class User implements Serializable {
@@ -12,7 +13,7 @@ public class User implements Serializable {
     //private int rid;
     private byte[] pairSignature;
     private int balance;
-    private LinkedList<Transfer> totalTransfers = new LinkedList<>(); // transfer = (key, amount)
+    private LinkedList<Transfer> totalTransfers = new LinkedList<>();    // transfer = (key, amount)
     private LinkedList<Transfer> pendingTransfers = new LinkedList<>();
     private NonceManager nonceManager = new NonceManager();
 

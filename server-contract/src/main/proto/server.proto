@@ -12,7 +12,8 @@ message Transaction {
   bytes sender_key = 4;
   bytes receiver_key = 5;
   int32 wid = 6;
-  bytes signature = 7;
+  bool sent = 7;
+  bytes signature = 8;
 }
 
 message PingRequest {

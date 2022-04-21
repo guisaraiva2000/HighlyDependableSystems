@@ -222,6 +222,24 @@ public class ClientServerFrontend implements Closeable {
 
             String newMessage = pendingTransactions.toString() + newNonce + rid + balance + wid + Arrays.toString(pairSig);
 
+            if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature))
+                System.out.println(1);
+
+            if (crypto.validateMessage(chKey, String.valueOf(wid) + balance, pairSig))
+                System.out.println(2);
+
+            if (nonce + 1 == newNonce)
+                System.out.println(3);
+
+            if (myRid == rid)
+                System.out.println(4);
+
+            if (validateTransactions(pendingTransactions))
+                System.out.println(5);
+
+            if (!hasDuplicatedTransactions(pendingTransactions))
+                System.out.println(6);
+
             if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature)
                     && crypto.validateMessage(chKey, String.valueOf(wid) + balance, pairSig)
                     && nonce + 1 == newNonce
@@ -352,6 +370,7 @@ public class ClientServerFrontend implements Closeable {
                     && !hasDuplicatedTransactions(transactions)
             ) {
                 auditResponses.add(res);
+
             } else {
                 resCol.responses.remove(sName);
             }
@@ -360,7 +379,9 @@ public class ClientServerFrontend implements Closeable {
         if (auditResponses.isEmpty())
             throw new DefaultErrorException();
 
-        return auditResponses.get(0);
+        // Get wider transaction list
+
+        return Collections.max(auditResponses, Comparator.comparing(AuditResponse::getTransactionsCount));
     }
 
 
@@ -374,10 +395,17 @@ public class ClientServerFrontend implements Closeable {
 
 
     private boolean hasDuplicatedTransactions(List<Transaction> t) {
-        if(t.size() != 0 && t.size() != 1)
-            return t.stream().map(Transaction::getSignature).distinct().count() == t.size();
 
-        return false;
+        final Set<Transaction> setToReturn = new HashSet<>();
+        final Set<Transaction> set1 = new HashSet<>();
+
+        for (Transaction yourInt : t) {
+            if (!set1.add(yourInt)) {
+                setToReturn.add(yourInt);
+            }
+        }
+
+        return !setToReturn.isEmpty();
     }
 
     private boolean validateTransactions(List<Transaction> transactions) {
@@ -390,13 +418,16 @@ public class ClientServerFrontend implements Closeable {
             PublicKey senderKey = crypto.bytesToKey(transaction.getSenderKey());
             PublicKey receiverKey = crypto.bytesToKey(transaction.getReceiverKey());
             int wid = transaction.getWid();
+            boolean isSent = transaction.getSent();
             byte[] newSignature = crypto.byteStringToByteArray(transaction.getSignature());
 
-            String newMessage = amount + senderName + receiverName + senderKey + receiverKey + wid;
+            String newMessage = amount + senderName + receiverName + senderKey + receiverKey + wid + isSent;
 
-            System.out.println(Arrays.toString(newSignature));
+            //System.out.println(newMessage);
 
-            if(!crypto.validateMessage(senderKey, newMessage, newSignature))
+            PublicKey key = isSent ? senderKey : receiverKey;
+
+            if(!crypto.validateMessage(key, newMessage, newSignature))
                 return false;
 
         }

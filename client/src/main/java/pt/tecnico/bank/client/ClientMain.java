@@ -40,6 +40,8 @@ public class ClientMain {
                 String username = res[0];
                 String password = res[1];
 
+                if (username == null || password == null) continue;
+
                 System.out.print("Password: ");
                 System.out.flush();
                 input = sin.nextLine();
@@ -112,6 +114,7 @@ public class ClientMain {
                         }
                     } catch (Exception e) {
                         System.err.println(ANSI_RED + "ERROR: Try again!");
+                        e.printStackTrace();
                     }
                 }
             }

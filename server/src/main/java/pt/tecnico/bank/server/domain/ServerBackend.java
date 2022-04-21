@@ -129,6 +129,7 @@ public class ServerBackend implements Serializable {
                 senderKey,
                 receiverKey,
                 wid,
+                transaction.getSent(),
                 crypto.byteStringToByteArray(transaction.getSignature())
         );  // add to dest pending list
 
@@ -140,8 +141,8 @@ public class ServerBackend implements Serializable {
                     crypto.bytesToKey(transaction.getSenderKey()),
                     crypto.bytesToKey(transaction.getReceiverKey()),
                     transaction.getWid(),
-                    crypto.byteStringToByteArray(transaction.getSignature()),
-            false
+                    transaction.getSent(),
+                    crypto.byteStringToByteArray(transaction.getSignature())
                 )
         );
 
@@ -243,6 +244,7 @@ public class ServerBackend implements Serializable {
                 crypto.bytesToKey(transaction.getSenderKey()),
                 crypto.bytesToKey(transaction.getReceiverKey()),
                 transaction.getWid(),
+                transaction.getSent(),
                 crypto.byteStringToByteArray(transaction.getSignature())
         ));
 
@@ -441,21 +443,21 @@ public class ServerBackend implements Serializable {
 
     // ------------------------------------ AUX -------------------------------------
 
-    private void transferAmount(int amount, String senderName, String receiverName, PublicKey sourceKey, PublicKey destKey, int  wid, byte[] signature) {
+    private void transferAmount(int amount, String senderName, String receiverName, PublicKey sourceKey, PublicKey destKey, int  wid, boolean sent, byte[] signature) {
         User user = users.get(destKey);
 
         LinkedList<Transfer> totalTransfers = user.getTotalTransfers();
-        totalTransfers.add(new Transfer(amount, senderName, receiverName, sourceKey, destKey, wid, signature, false));
+        totalTransfers.add(new Transfer(amount, senderName, receiverName, sourceKey, destKey, wid, sent, signature));
 
         user.setTotalTransfers(totalTransfers);
         user.setBalance(user.getBalance() + amount);
         users.put(destKey, user);
     }
 
-    private void addPendingTransfer(int amount, String senderName, String receiverName, PublicKey sourceKey, PublicKey destKey, int wid, byte[] signature) {
+    private void addPendingTransfer(int amount, String senderName, String receiverName, PublicKey sourceKey, PublicKey destKey, int wid, boolean sent, byte[] signature) {
         User user = users.get(destKey);
         LinkedList<Transfer> destPendingTransfers = user.getPendingTransfers();
-        destPendingTransfers.add(new Transfer(amount, senderName, receiverName, sourceKey, destKey, wid, signature, true)); // added to the dest pending transfers list
+        destPendingTransfers.add(new Transfer(amount, senderName, receiverName, sourceKey, destKey, wid, sent, signature)); // added to the dest pending transfers list
         user.setPendingTransfers(destPendingTransfers);
         users.put(destKey, user);
     }
@@ -481,6 +483,7 @@ public class ServerBackend implements Serializable {
                 .setSenderKey(ByteString.copyFrom(transfer.getSenderKey().getEncoded()))
                 .setReceiverKey(ByteString.copyFrom(transfer.getReceiverKey().getEncoded()))
                 .setWid(transfer.getWid())
+                .setSent(transfer.isSent())
                 .setSignature(ByteString.copyFrom(transfer.getSignature()))
                 .build();
     }

@@ -101,8 +101,10 @@ public class Client {
             int widToSend = res.getWid() + 1;
             int balanceToSend = res.getBalance() - amount;
 
-            String transactionMessage = amount + this.username + receiverAccount + senderKey + receiverKey + widToSend;
+            String transactionMessage = amount + this.username + receiverAccount + senderKey + receiverKey + widToSend + true;
             byte[] transactionSignature = crypto.encrypt(this.username, transactionMessage);
+
+            //System.out.println(transactionMessage);
 
             Transaction transaction = Transaction.newBuilder()
                     .setAmount(amount)
@@ -111,6 +113,7 @@ public class Client {
                     .setSenderKey(ByteString.copyFrom(senderKey.getEncoded()))
                     .setReceiverKey(ByteString.copyFrom(receiverKey.getEncoded()))
                     .setWid(widToSend)
+                    .setSent(true)
                     .setSignature(ByteString.copyFrom(transactionSignature))
                     .build();
 
@@ -140,16 +143,27 @@ public class Client {
     }
 
     public String check_account(String checkAccountName) {
-        List<Transaction> pendingTransactions;
+        StringBuilder transactionsToString;
         int balance;
 
         try {
             CheckAccountResponse res = getCheckAccountResponse(checkAccountName);
 
-            pendingTransactions = res.getPendingTransactionsList();
+            this.rid++;
+
+            List<Transaction> pendingTransactions = res.getPendingTransactionsList();
             balance = res.getBalance();
 
-            this.rid++;
+            transactionsToString = new StringBuilder();
+
+            for (Transaction t : pendingTransactions)
+                transactionsToString
+                        .append("\n\t\t- User ")
+                        .append(t.getSenderUsername())
+                        .append(" sent ")
+                        .append(t.getAmount())
+                        .append(" euros.");
+
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -159,11 +173,13 @@ public class Client {
 
         return ANSI_GREEN + "Account Status:\n\t" +
                 "- Balance: " + balance +
-                "\n\t- Pending transactions:" + pendingTransactions;
+                "\n\t- Pending transactions:" + transactionsToString;
     }
 
     public String receive_amount() {
+
         int amountToReceive;
+
         try {
             CheckAccountResponse res = getCheckAccountResponse(this.username);
 
@@ -178,19 +194,18 @@ public class Client {
                 return ANSI_GREEN + "No pending transactions.";
 
             int balance = res.getBalance();
-            int wid = res.getWid();
+            int wid = res.getWid() + 1;
 
             List<Transaction> transactions = new ArrayList<>();
 
-            for (Transaction pending : pendingTransactions) {
+            for (Transaction pending : pendingTransactions) { // receiver creates own transactions from the pending ones
 
                 String transactionMessage =
                         pending.getAmount() + pending.getSenderUsername() + pending.getReceiverUsername()
-                                + pending.getSenderKey() + pending.getReceiverKey() + wid;
+                                + crypto.bytesToKey(pending.getSenderKey()) + crypto.bytesToKey(pending.getReceiverKey())
+                                + wid + false;
 
                 byte[] transactionSignature = crypto.encrypt(this.username, transactionMessage);
-
-                System.out.println(Arrays.toString(transactionSignature)); // todo fix me
 
                 transactions.add(
                         Transaction.newBuilder()
@@ -200,6 +215,7 @@ public class Client {
                                 .setSenderKey(pending.getSenderKey())
                                 .setReceiverKey(pending.getReceiverKey())
                                 .setWid(wid)
+                                .setSent(false)
                                 .setSignature(ByteString.copyFrom(transactionSignature))
                                 .build()
                 );
@@ -213,24 +229,24 @@ public class Client {
             long timestamp = crypto.generateTimestamp();
 
             int balanceToSend = balance + amountToReceive;
-            int widToSend = wid + 1;
+            //int widToSend = wid + 1;
 
-            byte[] pairSignature = crypto.encrypt(this.username,  String.valueOf(widToSend) + balanceToSend);
+            byte[] pairSignature = crypto.encrypt(this.username,  String.valueOf(wid) + balanceToSend);
 
-            String messageToSign = transactions + key.toString() + nonce + timestamp + widToSend + balanceToSend+ Arrays.toString(pairSignature);
+            String messageToSign = transactions + key.toString() + nonce + timestamp + wid + balanceToSend + Arrays.toString(pairSignature);
 
             ReceiveAmountRequest req = ReceiveAmountRequest.newBuilder()
                     .addAllPendingTransactions(transactions)
                     .setPublicKey(ByteString.copyFrom(key.getEncoded()))
                     .setNonce(nonce)
                     .setTimestamp(timestamp)
-                    .setWid(widToSend)
+                    .setWid(wid)
                     .setBalance(balanceToSend)
                     .setPairSignature(ByteString.copyFrom(pairSignature))
                     .setSignature(ByteString.copyFrom(crypto.encrypt(this.username, messageToSign)))
                     .build();
 
-            ReceiveAmountResponse response = frontend.receiveAmount(req);
+            frontend.receiveAmount(req);
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -242,7 +258,7 @@ public class Client {
     }
 
     public String audit(String checkAccountName) {
-        List<Transaction> transactions;
+        StringBuilder transactionsToString;
 
         try {
 
@@ -261,9 +277,31 @@ public class Client {
                     .setTimestamp(timestamp)
                     .setRid(this.rid + 1)
                     .build();
+
             AuditResponse res = frontend.audit(req);
 
-            transactions = res.getTransactionsList();
+            List<Transaction> transactions = res.getTransactionsList();
+
+            transactionsToString = new StringBuilder();
+
+            for (Transaction t : transactions) {
+                if (t.getSent()) {
+                    transactionsToString
+                            .append("\n\t- ")
+                            .append("You sent ")
+                            .append(t.getAmount())
+                            .append(" euros to ")
+                            .append(t.getReceiverUsername())
+                            .append(".");
+                } else {
+                    transactionsToString
+                            .append("\n\t- User ")
+                            .append(t.getSenderUsername())
+                            .append(" sent ")
+                            .append(t.getAmount())
+                            .append(" euros.");
+                }
+            }
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -271,7 +309,7 @@ public class Client {
             return ANSI_RED + e.getMessage();
         }
 
-        return ANSI_GREEN + "Total transfers: " + transactions;
+        return ANSI_GREEN + "Total transfers: " + transactionsToString;
     }
 
     private String handleError(StatusRuntimeException e) {
