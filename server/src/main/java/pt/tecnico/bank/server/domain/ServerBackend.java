@@ -3,7 +3,8 @@ package pt.tecnico.bank.server.domain;
 import com.google.protobuf.ByteString;
 import io.grpc.Status;
 import pt.tecnico.bank.crypto.Crypto;
-import pt.tecnico.bank.server.domain.adeb.AdebFrontend;
+import pt.tecnico.bank.server.domain.adeb.AdebInstance;
+import pt.tecnico.bank.server.domain.adeb.AdebManager;
 import pt.tecnico.bank.server.domain.exceptions.ErrorMessage;
 import pt.tecnico.bank.server.domain.exceptions.ServerStatusRuntimeException;
 import pt.tecnico.bank.server.grpc.Adeb.EchoRequest;
@@ -12,13 +13,9 @@ import pt.tecnico.bank.server.grpc.Server.*;
 
 import java.io.Serializable;
 import java.security.PublicKey;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.stream.Collectors;
 
 import static pt.tecnico.bank.server.domain.exceptions.ErrorMessage.*;
 
@@ -32,21 +29,12 @@ public class ServerBackend implements Serializable {
     private final StateManager stateManager;
     private final Crypto crypto;
     private final String sName;
-
-
-    // ADEB
-    private final AdebFrontend adebFrontend;
-    private final int byzantineEchoQuorum;
-    private final int byzantineReadyQuorum;
     private final int nByzantineServers;
-    private byte[] input = null;
-    private boolean sentEcho = false;
-    private boolean sentReady = false;
-    private boolean delivered = false;
-    private final NonceManager nonceManager = new NonceManager();;
-    private final List<byte[]> echos = new ArrayList<>();
-    private final List<byte[]> readys = new ArrayList<>();
-    private CountDownLatch latch;
+
+    private final NonceManager nonceManager = new NonceManager();
+
+    private final AdebManager adebManager;
+
 
     public ServerBackend(String sName, int nByzantineServers) {
         this.sName = sName;
@@ -56,121 +44,169 @@ public class ServerBackend implements Serializable {
         this.crypto = new Crypto(sName, sName, false);
         this.users = stateManager.loadState();
 
-        this.adebFrontend = new AdebFrontend(nByzantineServers);
-
-        int nServers = 3 * nByzantineServers + 1;
-        this.byzantineEchoQuorum = (nServers + nByzantineServers) / 2 + 1;      //  > (N + f) / 2
-        this.byzantineReadyQuorum = 2 * nByzantineServers + 1;                  //  > 2f
+        this.adebManager = new AdebManager(nByzantineServers);
 
         initServerKeys();
     }
 
-    public synchronized OpenAccountResponse openAccount(ByteString pubKey, ByteString signature) {
+    public synchronized OpenAccountResponse openAccount (
+            String username, int initWid, int initBalance, ByteString pairSignature, ByteString pubKey, ByteString signature
+    ) {
 
-        PublicKey pubKeyBytes = crypto.bytesToKey(pubKey);
+        PublicKey key = crypto.bytesToKey(pubKey);
+
+        if (users.containsKey(key))
+            throwError(ACCOUNT_ALREADY_EXISTS, 0);
+
+        byte[] pairSig = crypto.byteStringToByteArray(pairSignature);
+
+        String message = username + initWid + initBalance + Arrays.toString(pairSig) + key.toString();
 
         byte[] sig = crypto.byteStringToByteArray(signature);
 
-        if (users.containsKey(pubKeyBytes))
-            throwError(ACCOUNT_ALREADY_EXISTS, 0);
-
-        String message = pubKeyBytes.toString();
-
-        if (!crypto.validateMessage(pubKeyBytes, message, sig))
+        if (!crypto.validateMessage(key, message, sig))
             throwError(INVALID_SIGNATURE, 0);
 
-        User newUser = new User(pubKeyBytes, 100);
-        users.put(pubKeyBytes, newUser);
+        User newUser = new User(key, username, initWid, initBalance, pairSig);
+        users.put(key, newUser);
 
         stateManager.saveState(users);
 
         return OpenAccountResponse.newBuilder()
-                .setPublicKey(ByteString.copyFrom(pubKeyBytes.getEncoded()))
-                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, String.valueOf(pubKeyBytes))))
+                .setUsername(username)
+                .setPublicKey(ByteString.copyFrom(key.getEncoded()))
+                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, username + key)))
                 .build();
     }
 
-    public SendAmountResponse sendAmount(ByteString sourceKeyString, ByteString destinationKeyString, int amount,
-                                            long nonce, long timestamp, ByteString signature) {
+    public SendAmountResponse sendAmount(
+            Transaction transaction, long nonce, long timestamp, int balance, ByteString pairSignature, ByteString signature
+    ) {
 
-        PublicKey sourceKey = crypto.bytesToKey(sourceKeyString);
-        PublicKey destinationKey = crypto.bytesToKey(destinationKeyString);
+        PublicKey senderKey = crypto.bytesToKey(transaction.getSenderKey());
+        PublicKey receiverKey = crypto.bytesToKey(transaction.getReceiverKey());
 
-        if (sourceKey.equals(destinationKey)) {
+        if (senderKey.equals(receiverKey)) {
             throwError(SAME_ACCOUNT, nonce + 1);
-        } else if (!(users.containsKey(sourceKey) && users.containsKey(destinationKey))) {
+        } else if (!(users.containsKey(senderKey) && users.containsKey(receiverKey))) {
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
+        } else if (transaction.getAmount() < 0) {
+            throwError(INVALID_BALANCE, nonce + 1);
         }
 
-        String message = sourceKey + destinationKey.toString() + amount + nonce + timestamp;
+        int wid = transaction.getWid();
+        byte[] pairSig = crypto.byteStringToByteArray(pairSignature);
+
+        String m = transaction.toString() + nonce + timestamp + wid + balance + Arrays.toString(pairSig);
 
         byte[] sig = crypto.byteStringToByteArray(signature);
 
-        if (!crypto.validateMessage(sourceKey, message, sig))
+        if (!crypto.validateMessage(senderKey, m, sig))
             throwError(INVALID_SIGNATURE, nonce + 1);
 
+        AdebInstance adebInstance = new AdebInstance(this.nByzantineServers);
 
-        runAdeb(sig);   // ADEB!!!!
+        adebManager.addInstance(Arrays.toString(sig), adebInstance);
+
+        runAdeb(sig, adebInstance);   // ADEB!!!!
 
 
-        User sourceUser = users.get(sourceKey);
+        User sourceUser = users.get(senderKey);
 
         if(!validateUserNonce(sourceUser, nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
-        if (sourceUser.getBalance() + sourceUser.getPendentAmount() < amount)
+        if (sourceUser.getBalance() < transaction.getAmount())
             throwError(NOT_ENOUGH_BALANCE, nonce + 1);
 
-        addPendingAmount(-amount, sourceKey);
-        addPendingTransfer(amount, sourceKey, destinationKey);  // add to dest pending list
+        if (!(wid > sourceUser.getWid() && balance == sourceUser.getBalance() - transaction.getAmount()))
+            throwError(BYZANTINE_CLIENT, nonce + 1);
+
+        addPendingTransfer(
+                transaction.getAmount(),
+                transaction.getSenderUsername(),
+                transaction.getReceiverUsername(),
+                senderKey,
+                receiverKey,
+                wid,
+                crypto.byteStringToByteArray(transaction.getSignature())
+        );  // add to dest pending list
+
+        LinkedList<Transfer> totalTransfers = sourceUser.getTotalTransfers();
+        totalTransfers.add(new Transfer(
+                    transaction.getAmount(),
+                    transaction.getSenderUsername(),
+                    transaction.getReceiverUsername(),
+                    crypto.bytesToKey(transaction.getSenderKey()),
+                    crypto.bytesToKey(transaction.getReceiverKey()),
+                    transaction.getWid(),
+                    crypto.byteStringToByteArray(transaction.getSignature()),
+            false
+                )
+        );
+
+        sourceUser.setTotalTransfers(totalTransfers);
+        sourceUser.setBalance(balance);
+        sourceUser.setWid(wid);
+        sourceUser.setPairSignature(pairSig);
+        users.put(senderKey, sourceUser);
 
         stateManager.saveState(users);
 
+        String messageToSign = senderKey.toString() + (nonce + 1) + wid;
+
         return SendAmountResponse.newBuilder()
-                .setPublicKey(ByteString.copyFrom(sourceKey.getEncoded()))
+                .setPublicKey(ByteString.copyFrom(senderKey.getEncoded()))
                 .setNonce(nonce + 1)
-                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, String.valueOf(sourceKey) + (nonce + 1))))
+                .setWid(wid)
+                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, messageToSign)))
                 .build();
+
     }
 
-    public CheckAccountResponse checkAccount(ByteString checkKey, long nonce, long timestamp) {
-        PublicKey pubKeyBytes = crypto.bytesToKey(checkKey);
+    public CheckAccountResponse checkAccount(
+            ByteString clientKey, ByteString checkKey, long nonce, long timestamp, int rid
+    ) {
+        PublicKey cliKey = crypto.bytesToKey(clientKey);
+        PublicKey chKey = crypto.bytesToKey(checkKey);
 
-        if (!(users.containsKey(pubKeyBytes)))
+        if (!(users.containsKey(cliKey)) || !(users.containsKey(chKey)))
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
 
-        User user = users.get(pubKeyBytes);
-
-        if(!validateUserNonce(user, nonce, timestamp))
+        if(!validateUserNonce(users.get(cliKey), nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
-        String pendingTransfersAsString = null;
-        LinkedList<Transfer> pendingTransfers = users.get(pubKeyBytes).getPendingTransfers();
+        List<Transaction> pendingTransactions = getPendingTransactions(chKey);
 
-        if (pendingTransfers != null)
-            pendingTransfersAsString = getTransfersAsString(pendingTransfers);
+        int wid = users.get(chKey).getWid();
+        int currBalance = users.get(chKey).getBalance();
+        byte[] pairSig = users.get(chKey).getPairSignature();
 
-        int currBalance = users.get(pubKeyBytes).getBalance();
-        int pendAmount = -users.get(pubKeyBytes).getPendentAmount();
-        String message = String.valueOf(currBalance) + pendAmount + pendingTransfersAsString + (nonce + 1);
+        String messageToSign = pendingTransactions.toString() + (nonce + 1) + rid + currBalance + wid + Arrays.toString(pairSig);
 
         return CheckAccountResponse.newBuilder()
-                .setBalance(currBalance)
-                .setPendentAmount(pendAmount)
-                .setPendentTransfers(pendingTransfersAsString)
+                .addAllPendingTransactions(pendingTransactions)
                 .setNonce(nonce + 1)
-                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, message)))
+                .setRid(rid)
+                .setBalance(currBalance)
+                .setWid(wid)
+                .setPairSignature(ByteString.copyFrom(pairSig))
+                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, messageToSign)))
                 .build();
     }
 
-    public ReceiveAmountResponse receiveAmount(ByteString pubKeyString, ByteString signature, long nonce, long timestamp) {
+    public ReceiveAmountResponse receiveAmount(
+            List<Transaction> transactions, ByteString publicKey, long nonce, long timestamp, int wid, int balance, ByteString pairSignature, ByteString signature
+    ) {
 
-        PublicKey pubKey = crypto.bytesToKey(pubKeyString);
+        PublicKey pubKey = crypto.bytesToKey(publicKey);
 
         if (!(users.containsKey(pubKey)))
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
 
-        String message = pubKey.toString() + nonce + timestamp;
+        byte[] pairSig = crypto.byteStringToByteArray(pairSignature);
+
+        String message = transactions + pubKey.toString() + nonce + timestamp + wid + balance + Arrays.toString(pairSig);
 
         byte[] sig = crypto.byteStringToByteArray(signature);
 
@@ -178,7 +214,11 @@ public class ServerBackend implements Serializable {
             throwError(INVALID_SIGNATURE, nonce + 1);
 
 
-        runAdeb(sig);   // ADEB!!!!
+        AdebInstance adebInstance = new AdebInstance(this.nByzantineServers);
+
+        adebManager.addInstance(Arrays.toString(sig), adebInstance);
+
+        runAdeb(sig, adebInstance);   // ADEB!!!!
 
 
         User user = users.get(pubKey);
@@ -186,49 +226,67 @@ public class ServerBackend implements Serializable {
         if(!validateUserNonce(user, nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
-        LinkedList<Transfer> pendingTransfers = user.getPendingTransfers();
-        int oldBalance = user.getBalance();
+        LinkedList<Transfer> pendingTransactions = user.getPendingTransfers();
+        int amountToReceive = 0;
 
-        pendingTransfers.forEach(transfer -> {
-            transferAmount(transfer.getDestination(), pubKey, -transfer.getAmount()); // take from senders
-            transferAmount(pubKey, transfer.getDestination(), transfer.getAmount()); // transfer to receiver
-        });
+        for (Transfer pendingTransaction : pendingTransactions)
+            amountToReceive += pendingTransaction.getAmount();
 
-        pendingTransfers.clear();
-        user.setPendingTransfers(pendingTransfers); // clear the list
+        if (!(wid > user.getWid() && balance == user.getBalance() + amountToReceive))
+            throwError(BYZANTINE_CLIENT, nonce + 1);
+
+
+        transactions.forEach(transaction -> transferAmount(
+                transaction.getAmount(),
+                transaction.getSenderUsername(),
+                transaction.getReceiverUsername(),
+                crypto.bytesToKey(transaction.getSenderKey()),
+                crypto.bytesToKey(transaction.getReceiverKey()),
+                transaction.getWid(),
+                crypto.byteStringToByteArray(transaction.getSignature())
+        ));
+
+        pendingTransactions.clear();
+        user.setPendingTransfers(pendingTransactions); // clear the list
+
+        user.setWid(wid);
+        user.setPairSignature(pairSig);
+
         users.put(pubKey, user); // update user
 
         stateManager.saveState(users);
 
-        int recvAmount = user.getBalance() - oldBalance;
-        String newMessage = recvAmount + String.valueOf(pubKey) + (nonce + 1);
+        String newMessage = String.valueOf(pubKey) + (nonce + 1) + wid;
 
         return ReceiveAmountResponse.newBuilder()
-                .setRecvAmount(recvAmount)
                 .setPublicKey(ByteString.copyFrom(pubKey.getEncoded()))
                 .setNonce(nonce + 1)
+                .setWid(wid)
                 .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, newMessage)))
                 .build();
     }
 
-    public AuditResponse audit(ByteString checkKeyString, long nonce, long timestamp)  {
-        PublicKey pubKey = crypto.bytesToKey(checkKeyString);
+    public AuditResponse audit(ByteString clientKey, ByteString auditKeyy, long nonce, long timestamp, int rid)  {
+        PublicKey cliKey = crypto.bytesToKey(clientKey);
+        PublicKey auditKey = crypto.bytesToKey(auditKeyy);
 
-        if (!(users.containsKey(pubKey)))
+        if (!(users.containsKey(cliKey)))
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
 
-        User user = users.get(pubKey);
+        User user = users.get(cliKey);
 
         if(!validateUserNonce(user, nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
-        LinkedList<Transfer> totalTransfers = users.get(pubKey).getTotalTransfers();
-        String transfers = totalTransfers.isEmpty() ? "No transfers waiting to be accepted" : getTransfersAsString(totalTransfers);
+        List<Transaction> transactions = getTotalTransactions(auditKey);
+
+        String messageToSign = transactions.toString() + (nonce + 1) + rid;
 
         return AuditResponse.newBuilder()
-                .setTransferHistory(transfers)
+                .addAllTransactions(transactions)
                 .setNonce(nonce + 1)
-                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, transfers + (nonce + 1))))
+                .setRid(rid)
+                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, messageToSign)))
                 .build();
     }
 
@@ -252,20 +310,22 @@ public class ServerBackend implements Serializable {
 
         doAdebVerifications(pubKeyString, sName, inputByte, nonce, ts, signature);
 
-        if (Arrays.equals(inputByte, this.input)) {
+        AdebInstance adebInstance = adebManager.getOrAddAdebInstance(Arrays.toString(inputByte));
+
+        if (Arrays.equals(inputByte, adebInstance.getInput())) {
 
             System.out.println("The echo input from server " + sName + " is the same as mine.");
 
-            this.echos.add(inputByte);
+            adebInstance.addEcho(inputByte);
         }
 
         PublicKey sKey = crypto.getPublicKey(this.sName);
 
-        if (this.echos.size() == this.byzantineEchoQuorum && !this.sentReady) {
+        if (adebInstance.getEchos().size() == adebInstance.getByzantineEchoQuorum() && !adebInstance.isSentReady()) {
 
             System.out.println("\nSending readys from echo...");
 
-            sendReadys(input, sKey);
+            sendReadys(input, sKey, adebInstance);
         }
     }
 
@@ -289,32 +349,36 @@ public class ServerBackend implements Serializable {
 
         doAdebVerifications(pubKeyString, sName, inputByte, nonce, ts, signature);
 
-        if (Arrays.equals(inputByte, this.input)) {
+        AdebInstance adebInstance = adebManager.getOrAddAdebInstance(Arrays.toString(inputByte));
+
+        if (Arrays.equals(inputByte, adebInstance.getInput())) {
 
             System.out.println("The ready input from server " + sName + " is the same as mine.");
 
-            this.readys.add(inputByte);
+            adebInstance.addReady(inputByte);
         }
 
         PublicKey sKey = crypto.getPublicKey(this.sName);
 
-        if (this.readys.size() > this.nByzantineServers && !this.sentReady) {
+        if (adebInstance.getReadys().size() > this.nByzantineServers && !adebInstance.isSentReady()) {
 
             System.out.println("Sending readys...");
 
-            sendReadys(input, sKey);
+            sendReadys(input, sKey, adebInstance);
 
-        } else if (this.readys.size() == this.byzantineReadyQuorum && this.sentReady && !this.delivered) {
+        } else if (adebInstance.getReadys().size() == adebInstance.getByzantineReadyQuorum()
+                && adebInstance.isSentReady()
+                && !adebInstance.isDelivered()) {
 
-            this.delivered = true;
-            this.latch.countDown();
-
+            adebInstance.setDelivered(true);
+            adebInstance.countDown();
         }
 
     }
 
-    private void sendReadys(ByteString input, PublicKey sKey) {
-        this.sentReady = true;
+    private void sendReadys(ByteString input, PublicKey sKey, AdebInstance adebInstance) {
+
+        adebInstance.setSentReady(true);
 
         long readyNonce = crypto.generateNonce();
         long readyTs = crypto.generateTimestamp();
@@ -324,7 +388,7 @@ public class ServerBackend implements Serializable {
 
         byte[] readySignature = crypto.encrypt(this.sName, message);
 
-        adebFrontend.ready(
+        adebInstance.getAdebFrontend().ready(
                 ReadyRequest.newBuilder()
                         .setInput(ByteString.copyFrom(inputBytes))
                         .setNonce(readyNonce)
@@ -338,15 +402,15 @@ public class ServerBackend implements Serializable {
     }
 
 
-    private void runAdeb(byte[] clientInput) {
+    private void runAdeb(byte[] clientInput, AdebInstance adebInstance) {
 
-        if (!this.sentEcho) {
+        if (!adebInstance.isSentEcho()) {
 
             System.out.println("Running ADEB...\n");
-            this.latch = new CountDownLatch(1);
+            adebInstance.setLatch(new CountDownLatch(1));
 
-            this.input = clientInput;
-            this.sentEcho = true;
+            adebInstance.setInput(clientInput);
+            adebInstance.setSentEcho(true);
 
             // echo
             PublicKey pubKey = crypto.getPublicKey(this.sName);
@@ -357,7 +421,7 @@ public class ServerBackend implements Serializable {
 
             byte[] signature = crypto.encrypt(this.sName, message);
 
-            adebFrontend.echo(
+            adebInstance.getAdebFrontend().echo(
                     EchoRequest.newBuilder()
                         .setInput(ByteString.copyFrom(clientInput))
                         .setNonce(echoNonce)
@@ -367,42 +431,58 @@ public class ServerBackend implements Serializable {
                         .setSignature(ByteString.copyFrom(signature)).build()
             );
 
-            await(latch);
+            await(adebInstance.getLatch());
             System.out.println("ADEB ENDED!! All servers synchronized\n\n");
 
-            resetAdebParameters();
+            this.adebManager.removeAdebInstance(Arrays.toString(clientInput));
         }
 
     }
 
     // ------------------------------------ AUX -------------------------------------
 
-    private void transferAmount(PublicKey senderKey, PublicKey receiverKey, int amount) {
-        User user = users.get(senderKey);
+    private void transferAmount(int amount, String senderName, String receiverName, PublicKey sourceKey, PublicKey destKey, int  wid, byte[] signature) {
+        User user = users.get(destKey);
+
         LinkedList<Transfer> totalTransfers = user.getTotalTransfers();
-        totalTransfers.add(new Transfer(receiverKey, amount, false));
+        totalTransfers.add(new Transfer(amount, senderName, receiverName, sourceKey, destKey, wid, signature, false));
+
         user.setTotalTransfers(totalTransfers);
         user.setBalance(user.getBalance() + amount);
-        if (amount < 0) user.setPendentAmount(user.getPendentAmount() - amount);
-        users.put(senderKey, user);
+        users.put(destKey, user);
     }
 
-    private void addPendingTransfer(int amount, PublicKey sourceKey, PublicKey destinationKey) {
-        User user = users.get(destinationKey);
+    private void addPendingTransfer(int amount, String senderName, String receiverName, PublicKey sourceKey, PublicKey destKey, int wid, byte[] signature) {
+        User user = users.get(destKey);
         LinkedList<Transfer> destPendingTransfers = user.getPendingTransfers();
-        destPendingTransfers.add(new Transfer(sourceKey, amount, true)); // added to the dest pending transfers list
+        destPendingTransfers.add(new Transfer(amount, senderName, receiverName, sourceKey, destKey, wid, signature, true)); // added to the dest pending transfers list
         user.setPendingTransfers(destPendingTransfers);
-        users.put(destinationKey, user);
+        users.put(destKey, user);
     }
 
-    private void addPendingAmount(int amount, PublicKey key) {
-        User user = users.get(key);
-        user.setPendentAmount(user.getPendentAmount() + amount);
-        users.put(key, user);
+
+    private List<Transaction> getPendingTransactions(PublicKey key) {
+        List<Transaction> transactions = new ArrayList<>();
+        users.get(key).getPendingTransfers().forEach(transfer -> transactions.add(buildTransaction(transfer)));
+        return transactions;
     }
 
-    private String getTransfersAsString(LinkedList<Transfer> pendingTransfers) {
-        return pendingTransfers.stream().map(Transfer::toString).collect(Collectors.joining());
+    private List<Transaction> getTotalTransactions(PublicKey key) {
+        List<Transaction> transactions = new ArrayList<>();
+        users.get(key).getTotalTransfers().forEach(transfer -> transactions.add(buildTransaction(transfer)));
+        return transactions;
+    }
+
+    private Transaction buildTransaction(Transfer transfer) {
+        return Transaction.newBuilder()
+                .setAmount(transfer.getAmount())
+                .setSenderUsername(transfer.getSenderName())
+                .setReceiverUsername(transfer.getReceiverName())
+                .setSenderKey(ByteString.copyFrom(transfer.getSenderKey().getEncoded()))
+                .setReceiverKey(ByteString.copyFrom(transfer.getReceiverKey().getEncoded()))
+                .setWid(transfer.getWid())
+                .setSignature(ByteString.copyFrom(transfer.getSignature()))
+                .build();
     }
 
     private boolean validateUserNonce(User user, long nonce, long timestamp) {
@@ -427,15 +507,6 @@ public class ServerBackend implements Serializable {
             throwError(INVALID_NONCE, nonce + 1);
     }
 
-    private void resetAdebParameters() {
-        this.input = null;
-        this.latch = null;
-        this.sentReady = false;
-        this.sentEcho = false;
-        this.delivered = false;
-        this.echos.clear();
-        this.readys.clear();
-    }
 
     private void initServerKeys() {
         this.crypto.generateKeyStore(this.sName);

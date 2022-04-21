@@ -11,6 +11,9 @@ import pt.tecnico.bank.server.grpc.Server.*;
 
 import java.security.Key;
 import java.security.PublicKey;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class Client {
 
@@ -19,8 +22,12 @@ public class Client {
 
     private final ClientServerFrontend frontend;
     private final Crypto crypto;
+    private final String username;
+
+    private int rid;
 
     public Client(String username, String password, int nByzantineServers) {
+        this.username = username;
         this.crypto = new Crypto(username, password, true);
         this.frontend = new ClientServerFrontend(nByzantineServers, this.crypto);
     }
@@ -36,17 +43,29 @@ public class Client {
         return ANSI_GREEN + res.getOutput();
     }
 
-    public String open_account(String accountName) {
+    public String open_account() {
         try {
-            if (crypto.accountExists(accountName))
+            if (crypto.accountExists( this.username))
                 throw new AccountAlreadyExistsException();
 
-            Key pubKey = crypto.generateKeyStore(accountName);
+            Key pubKey = crypto.generateKeyStore(this.username);
             byte[] encoded = pubKey.getEncoded();
 
-            byte[] signature = crypto.encrypt(accountName, pubKey.toString());
+            int initWid = 0;
+            int initBalance = 100; // default value
+
+            // signature of (wid, bal)
+            byte[] pairSignature = crypto.encrypt(this.username, initWid + String.valueOf(initBalance));
+
+            String m = this.username + initWid + initBalance + Arrays.toString(pairSignature) + pubKey;
+
+            byte[] signature = crypto.encrypt(this.username, m);
 
             OpenAccountRequest req = OpenAccountRequest.newBuilder()
+                    .setUsername(this.username)
+                    .setInitWid(initWid)
+                    .setInitBalance(initBalance)
+                    .setPairSignature(ByteString.copyFrom(pairSignature))
                     .setPublicKey(ByteString.copyFrom(encoded))
                     .setSignature(ByteString.copyFrom(signature))
                     .build();
@@ -59,33 +78,55 @@ public class Client {
             return ANSI_RED + e.getMessage();
         }
 
-        return ANSI_GREEN + "Account with name " + accountName + " created";
+        return ANSI_GREEN + "Account with name " +  this.username + " created";
     }
 
-    public String send_amount(String senderAccount, String receiverAccount, int amount) {
+    public String send_amount(String receiverAccount, int amount) {
         try {
             if (amount < 0) throw new InvalidAmountException();
+
+            CheckAccountResponse res = getCheckAccountResponse(this.username);
+
+            this.rid++;
 
             long nonce = crypto.generateNonce();
             long timestamp = crypto.generateTimestamp();
 
-            PublicKey origKey = crypto.getPublicKey(senderAccount);
-            PublicKey destKey = crypto.getPublicKey(receiverAccount);
+            PublicKey senderKey = crypto.getPublicKey(this.username);
+            PublicKey receiverKey = crypto.getPublicKey(receiverAccount);
 
-            if (origKey == null || destKey == null)
+            if (senderKey == null || receiverKey == null)
                 throw new AccountDoesNotExistsException();
 
-            String message = origKey + destKey.toString() + amount + nonce + timestamp;
+            int widToSend = res.getWid() + 1;
+            int balanceToSend = res.getBalance() - amount;
 
-            byte[] signature = crypto.encrypt(senderAccount, message);
+            String transactionMessage = amount + this.username + receiverAccount + senderKey + receiverKey + widToSend;
+            byte[] transactionSignature = crypto.encrypt(this.username, transactionMessage);
 
-            // send encrypted message instead of clear message
-            SendAmountRequest req = SendAmountRequest.newBuilder().setSourceKey(ByteString.copyFrom(origKey.getEncoded()))
-                    .setDestinationKey(ByteString.copyFrom(destKey.getEncoded()))
+            Transaction transaction = Transaction.newBuilder()
                     .setAmount(amount)
-                    .setSignature(ByteString.copyFrom(signature))
+                    .setSenderUsername(this.username)
+                    .setReceiverUsername(receiverAccount)
+                    .setSenderKey(ByteString.copyFrom(senderKey.getEncoded()))
+                    .setReceiverKey(ByteString.copyFrom(receiverKey.getEncoded()))
+                    .setWid(widToSend)
+                    .setSignature(ByteString.copyFrom(transactionSignature))
+                    .build();
+
+            byte[] pairSignature = crypto.encrypt(this.username,  String.valueOf(widToSend) + balanceToSend);
+
+            String m = transaction.toString() + nonce + timestamp + widToSend + balanceToSend + Arrays.toString(pairSignature);
+
+            byte[] signature = crypto.encrypt(this.username, m);
+
+            SendAmountRequest req = SendAmountRequest.newBuilder()
+                    .setTransaction(transaction)
                     .setNonce(nonce)
                     .setTimestamp(timestamp)
+                    .setBalance(balanceToSend)
+                    .setPairSignature(ByteString.copyFrom(pairSignature))
+                    .setSignature(ByteString.copyFrom(signature))
                     .build();
 
             frontend.sendAmount(req);
@@ -95,31 +136,20 @@ public class Client {
         } catch (InvalidAmountException | AccountDoesNotExistsException e) {
             return ANSI_RED + e.getMessage();
         }
-        return ANSI_GREEN + "Sent " + amount + " from " + senderAccount + " to " + receiverAccount;
+        return ANSI_GREEN + "Sent " + amount + " from " + this.username + " to " + receiverAccount;
     }
 
     public String check_account(String checkAccountName) {
-        int balance, pendentAmount;
-        String transfers;
+        List<Transaction> pendingTransactions;
+        int balance;
 
         try {
-            long nonce = crypto.generateNonce();
-            long timestamp = crypto.generateTimestamp();
+            CheckAccountResponse res = getCheckAccountResponse(checkAccountName);
 
-            PublicKey key = crypto.getPublicKey(checkAccountName);
-
-            if (key == null) throw new AccountDoesNotExistsException();
-
-            CheckAccountRequest req = CheckAccountRequest.newBuilder()
-                    .setNonce(nonce)
-                    .setTimestamp(timestamp)
-                    .setPublicKey(ByteString.copyFrom(key.getEncoded()))
-                    .build();
-            CheckAccountResponse res = frontend.checkAccount(req);
-
+            pendingTransactions = res.getPendingTransactionsList();
             balance = res.getBalance();
-            pendentAmount = res.getPendentAmount();
-            transfers = res.getPendentTransfers();
+
+            this.rid++;
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -129,32 +159,78 @@ public class Client {
 
         return ANSI_GREEN + "Account Status:\n\t" +
                 "- Balance: " + balance +
-                "\n\t- On hold amount to send: " + pendentAmount +
-                "\n\t- Pending transfers:" + transfers.replaceAll("-", "\n\t\t-");
+                "\n\t- Pending transactions:" + pendingTransactions;
     }
 
-    public String receive_amount(String accountName) {
-        int recvAmount;
+    public String receive_amount() {
+        int amountToReceive;
         try {
+            CheckAccountResponse res = getCheckAccountResponse(this.username);
+
+            this.rid++;
+
+            PublicKey key = crypto.getPublicKey(this.username);
+
+            amountToReceive = 0;
+            List<Transaction> pendingTransactions = res.getPendingTransactionsList();
+
+            if (pendingTransactions.isEmpty())
+                return ANSI_GREEN + "No pending transactions.";
+
+            int balance = res.getBalance();
+            int wid = res.getWid();
+
+            List<Transaction> transactions = new ArrayList<>();
+
+            for (Transaction pending : pendingTransactions) {
+
+                String transactionMessage =
+                        pending.getAmount() + pending.getSenderUsername() + pending.getReceiverUsername()
+                                + pending.getSenderKey() + pending.getReceiverKey() + wid;
+
+                byte[] transactionSignature = crypto.encrypt(this.username, transactionMessage);
+
+                System.out.println(Arrays.toString(transactionSignature)); // todo fix me
+
+                transactions.add(
+                        Transaction.newBuilder()
+                                .setAmount(pending.getAmount())
+                                .setSenderUsername(pending.getSenderUsername())
+                                .setReceiverUsername(pending.getReceiverUsername())
+                                .setSenderKey(pending.getSenderKey())
+                                .setReceiverKey(pending.getReceiverKey())
+                                .setWid(wid)
+                                .setSignature(ByteString.copyFrom(transactionSignature))
+                                .build()
+                );
+                wid++;
+            }
+
+            for (Transaction pendingTransaction : pendingTransactions)
+                amountToReceive += pendingTransaction.getAmount();
+
             long nonce = crypto.generateNonce();
             long timestamp = crypto.generateTimestamp();
 
-            PublicKey key = crypto.getPublicKey(accountName);
+            int balanceToSend = balance + amountToReceive;
+            int widToSend = wid + 1;
 
-            if (key == null) throw new AccountDoesNotExistsException();
+            byte[] pairSignature = crypto.encrypt(this.username,  String.valueOf(widToSend) + balanceToSend);
 
-            String message = key.toString() + nonce + timestamp;
-
-            byte[] signature = crypto.encrypt(accountName, message);
+            String messageToSign = transactions + key.toString() + nonce + timestamp + widToSend + balanceToSend+ Arrays.toString(pairSignature);
 
             ReceiveAmountRequest req = ReceiveAmountRequest.newBuilder()
+                    .addAllPendingTransactions(transactions)
                     .setPublicKey(ByteString.copyFrom(key.getEncoded()))
-                    .setSignature(ByteString.copyFrom(signature))
                     .setNonce(nonce)
                     .setTimestamp(timestamp)
+                    .setWid(widToSend)
+                    .setBalance(balanceToSend)
+                    .setPairSignature(ByteString.copyFrom(pairSignature))
+                    .setSignature(ByteString.copyFrom(crypto.encrypt(this.username, messageToSign)))
                     .build();
+
             ReceiveAmountResponse response = frontend.receiveAmount(req);
-            recvAmount = response.getRecvAmount();
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -162,29 +238,32 @@ public class Client {
             return ANSI_RED + e.getMessage();
         }
 
-        return ANSI_GREEN + "Amount deposited to your account: " + recvAmount;
+        return ANSI_GREEN + "Amount deposited to your account: " + amountToReceive;
     }
 
     public String audit(String checkAccountName) {
-        String transfers;
+        List<Transaction> transactions;
 
         try {
 
             long nonce = crypto.generateNonce();
             long timestamp = crypto.generateTimestamp();
 
-            PublicKey key = crypto.getPublicKey(checkAccountName);
+            PublicKey clientKey = crypto.getPublicKey(this.username);
+            PublicKey auditKey = crypto.getPublicKey(checkAccountName);
 
-            if (key == null) throw new AccountDoesNotExistsException();
+            if (auditKey == null) throw new AccountDoesNotExistsException();
 
             AuditRequest req = AuditRequest.newBuilder()
+                    .setClientKey(ByteString.copyFrom(clientKey.getEncoded()))
+                    .setAuditKey(ByteString.copyFrom(auditKey.getEncoded()))
                     .setNonce(nonce)
                     .setTimestamp(timestamp)
-                    .setPublicKey(ByteString.copyFrom(key.getEncoded()))
+                    .setRid(this.rid + 1)
                     .build();
             AuditResponse res = frontend.audit(req);
 
-            transfers = res.getTransferHistory();
+            transactions = res.getTransactionsList();
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -192,7 +271,7 @@ public class Client {
             return ANSI_RED + e.getMessage();
         }
 
-        return ANSI_GREEN + "Total transfers: " + transfers.replaceAll("-", "\n\t-");
+        return ANSI_GREEN + "Total transfers: " + transactions;
     }
 
     private String handleError(StatusRuntimeException e) {
@@ -201,6 +280,26 @@ public class Client {
         } else {
             return ANSI_RED + e.getStatus().getDescription();
         }
+    }
+
+    private CheckAccountResponse getCheckAccountResponse(String username) throws AccountDoesNotExistsException {
+        long nonce = crypto.generateNonce();
+        long timestamp = crypto.generateTimestamp();
+
+        PublicKey clientKey = crypto.getPublicKey(this.username);
+        PublicKey key = crypto.getPublicKey(username);
+
+        if (key == null || clientKey == null) throw new AccountDoesNotExistsException();
+
+        CheckAccountRequest checkReq = CheckAccountRequest.newBuilder()
+                .setClientKey(ByteString.copyFrom(clientKey.getEncoded()))
+                .setCheckKey(ByteString.copyFrom(key.getEncoded()))
+                .setNonce(nonce)
+                .setTimestamp(timestamp)
+                .setRid(this.rid + 1)
+                .build();
+
+        return frontend.checkAccount(checkReq);
     }
 
     void close() {

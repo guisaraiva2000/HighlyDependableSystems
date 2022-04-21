@@ -1,14 +1,16 @@
 package pt.tecnico.bank.client.frontend;
 
+import com.google.protobuf.ByteString;
 import io.grpc.*;
 import io.grpc.protobuf.ProtoUtils;
+import pt.tecnico.bank.client.exceptions.DefaultErrorException;
 import pt.tecnico.bank.crypto.Crypto;
 import pt.tecnico.bank.server.grpc.Server.*;
 import pt.tecnico.bank.server.grpc.ServerServiceGrpc;
-import pt.tecnico.bank.server.grpc.ServerServiceGrpc.*;
+import pt.tecnico.bank.server.grpc.ServerServiceGrpc.ServerServiceStub;
 
 import java.io.Closeable;
-import java.security.Key;
+import java.security.PublicKey;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -24,10 +26,12 @@ public class ClientServerFrontend implements Closeable {
     public ClientServerFrontend(int nByzantineServers, Crypto crypto) {
         this.stubs = new HashMap<>();
         this.channels = new ArrayList<>();
-        this.byzantineQuorum = 2 * nByzantineServers + 1;
         this.crypto = crypto;
 
-        for (int i = 0; i < 3 * nByzantineServers + 1; i++)
+        int nServers = 3 * nByzantineServers + 1;
+        this.byzantineQuorum = (nServers + nByzantineServers) / 2 + 1;
+
+        for (int i = 0; i < nServers; i++)
             createNewChannel(i);
     }
 
@@ -93,10 +97,12 @@ public class ClientServerFrontend implements Closeable {
 
             OpenAccountResponse res = (OpenAccountResponse) resCol.responses.get(sName);
 
-            Key pubKey = crypto.bytesToKey(res.getPublicKey());
+            PublicKey pubKey = crypto.bytesToKey(res.getPublicKey());
             byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
 
-            String message = pubKey.toString();
+            String username = res.getUsername();
+
+            String message = username + pubKey.toString();
 
             if (crypto.validateMessage(crypto.getPublicKey(sName), message, newSignature)) {
                 openAccountResponses.add(res);
@@ -104,6 +110,9 @@ public class ClientServerFrontend implements Closeable {
                 resCol.responses.remove(sName);
             }
         });
+
+        if (openAccountResponses.isEmpty())
+            throw new DefaultErrorException();
 
         return openAccountResponses.get(0);
     }
@@ -125,31 +134,8 @@ public class ClientServerFrontend implements Closeable {
             throw new StatusRuntimeException(Status.INTERNAL.withDescription(exceptionsHandler(exceptions, request.getNonce())));
         }
 
-        return getSendAmountResponse(request.getNonce(), resCol);
+        return getSendAmountResponse(request.getNonce(), request.getTransaction().getWid(), resCol);
 
-    }
-
-    private SendAmountResponse getSendAmountResponse(long nonce, ResponseCollector resCol) {
-        List<SendAmountResponse> sendAmountResponses = new ArrayList<>();
-
-        resCol.responses.keySet().forEach(sName -> {
-
-            SendAmountResponse res = (SendAmountResponse) resCol.responses.get(sName);
-
-            Key pubKey = crypto.bytesToKey(res.getPublicKey());
-            long newNonce = res.getNonce();
-            byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
-
-            String newMessage = pubKey.toString() + newNonce;
-
-            if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature) && nonce + 1 == newNonce) {
-                sendAmountResponses.add(res);
-            } else {
-                resCol.responses.remove(sName);
-            }
-        });
-
-        return sendAmountResponses.get(0);
     }
 
     private void sendAmountWorker(SendAmountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
@@ -159,6 +145,33 @@ public class ClientServerFrontend implements Closeable {
         } catch (StatusRuntimeException sre) {
             exceptionHandler(sre);
         }
+    }
+
+    private SendAmountResponse getSendAmountResponse(long nonce, int myWid, ResponseCollector resCol) {
+        List<SendAmountResponse> sendAmountResponses = new ArrayList<>();
+
+        resCol.responses.keySet().forEach(sName -> {
+
+            SendAmountResponse res = (SendAmountResponse) resCol.responses.get(sName);
+
+            PublicKey pubKey = crypto.bytesToKey(res.getPublicKey());
+            long newNonce = res.getNonce();
+            int wid = res.getWid();
+            byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
+
+            String newMessage = pubKey.toString() + newNonce + wid;
+
+            if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature) && nonce + 1 == newNonce && wid == myWid) {
+                sendAmountResponses.add(res);
+            } else {
+                resCol.responses.remove(sName);
+            }
+        });
+
+        if (sendAmountResponses.isEmpty())
+            throw new DefaultErrorException();
+
+        return sendAmountResponses.get(0);
     }
 
 
@@ -178,7 +191,7 @@ public class ClientServerFrontend implements Closeable {
             throw new StatusRuntimeException(Status.INTERNAL.withDescription(exceptionsHandler(exceptions, request.getNonce())));
         }
 
-        return getCheckAccountResponse(request.getNonce(), resCol);
+        return getCheckAccountResponse(request.getNonce(), request.getRid(), request.getCheckKey(), resCol);
     }
 
     private void checkAccountWorker(CheckAccountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
@@ -190,29 +203,44 @@ public class ClientServerFrontend implements Closeable {
         }
     }
 
-    private CheckAccountResponse getCheckAccountResponse(long nonce, ResponseCollector resCol) {
+    private CheckAccountResponse getCheckAccountResponse(long nonce, int myRid, ByteString checkKey, ResponseCollector resCol) {
         List<CheckAccountResponse> checkAccountResponses = new ArrayList<>();
+
+        PublicKey chKey = crypto.bytesToKey(checkKey);
 
         resCol.responses.keySet().forEach(sName -> {
 
             CheckAccountResponse res = (CheckAccountResponse) resCol.responses.get(sName);
-            int balance = res.getBalance();
-            int pendentAmount = res.getPendentAmount();
-            String transfers = res.getPendentTransfers();
+
+            List<Transaction> pendingTransactions = res.getPendingTransactionsList();
             long newNonce = res.getNonce();
+            int rid = res.getRid();
+            int balance = res.getBalance();
+            int wid = res.getWid();
+            byte[] pairSig = crypto.byteStringToByteArray(res.getPairSignature());
             byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
 
-            String newMessage = String.valueOf(balance) + pendentAmount + transfers + newNonce;
+            String newMessage = pendingTransactions.toString() + newNonce + rid + balance + wid + Arrays.toString(pairSig);
 
-            if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature) && nonce + 1 == newNonce) {
+            if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature)
+                    && crypto.validateMessage(chKey, String.valueOf(wid) + balance, pairSig)
+                    && nonce + 1 == newNonce
+                    && myRid == rid
+                    && validateTransactions(pendingTransactions)
+                    && !hasDuplicatedTransactions(pendingTransactions)
+            ) {
+
                 checkAccountResponses.add(res);
+
             } else {
                 resCol.responses.remove(sName);
             }
-
         });
 
-        return checkAccountResponses.get(0);
+        if (checkAccountResponses.isEmpty())
+            throw new DefaultErrorException();
+
+        return Collections.max(checkAccountResponses, Comparator.comparing(CheckAccountResponse::getWid));
     }
 
 
@@ -232,7 +260,7 @@ public class ClientServerFrontend implements Closeable {
             throw new StatusRuntimeException(Status.INTERNAL.withDescription(exceptionsHandler(exceptions, request.getNonce())));
         }
 
-        return getReceiveAmountResponse(request.getNonce(), resCol);
+        return getReceiveAmountResponse(request.getNonce(), request.getWid(), resCol);
     }
 
     private void receiveAmountWorker(ReceiveAmountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
@@ -244,20 +272,22 @@ public class ClientServerFrontend implements Closeable {
         }
     }
 
-    private ReceiveAmountResponse getReceiveAmountResponse(long nonce, ResponseCollector resCol) {
+    private ReceiveAmountResponse getReceiveAmountResponse(long nonce, int myWid, ResponseCollector resCol) {
         List<ReceiveAmountResponse> receiveAmountResponses = new ArrayList<>();
 
         resCol.responses.keySet().forEach(sName -> {
 
             ReceiveAmountResponse res = (ReceiveAmountResponse) resCol.responses.get(sName);
 
-            Key pubKey = crypto.bytesToKey(res.getPublicKey());
-            byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
+            PublicKey pubKey = crypto.bytesToKey(res.getPublicKey());
             long newNonce = res.getNonce();
+            int wid = res.getWid();
 
-            String newMessage = res.getRecvAmount() + pubKey.toString() + newNonce;
+            byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
 
-            if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature) && nonce + 1 == newNonce) {
+            String newMessage = pubKey.toString() + newNonce + wid;
+
+            if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature) && nonce + 1 == newNonce && wid == myWid) {
 
                 receiveAmountResponses.add(res);
 
@@ -265,6 +295,9 @@ public class ClientServerFrontend implements Closeable {
                 resCol.responses.remove(sName);
             }
         });
+
+        if (receiveAmountResponses.isEmpty())
+            throw new DefaultErrorException();
 
         return receiveAmountResponses.get(0);
     }
@@ -286,7 +319,7 @@ public class ClientServerFrontend implements Closeable {
             throw new StatusRuntimeException(Status.INTERNAL.withDescription(exceptionsHandler(exceptions, request.getNonce())));
         }
 
-        return getAuditResponse(request.getNonce(), resCol);
+        return getAuditResponse(request.getNonce(), request.getRid(), resCol);
     }
 
     private void auditWorker(AuditRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
@@ -298,25 +331,34 @@ public class ClientServerFrontend implements Closeable {
         }
     }
 
-    private AuditResponse getAuditResponse(long nonce, ResponseCollector resCol) {
+    private AuditResponse getAuditResponse(long nonce, int myRid, ResponseCollector resCol) {
         List<AuditResponse> auditResponses = new ArrayList<>();
 
         resCol.responses.keySet().forEach(sName -> {
 
             AuditResponse res = (AuditResponse) resCol.responses.get(sName);
 
-            String transfers = res.getTransferHistory();
+            List<Transaction> transactions = res.getTransactionsList();
             long newNonce = res.getNonce();
+            int rid = res.getRid();
             byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
 
-            String newMessage = transfers + newNonce;
+            String newMessage = transactions.toString() + newNonce + rid;
 
-            if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature) && nonce + 1 == newNonce) {
+            if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature)
+                    && nonce + 1 == newNonce
+                    && myRid == rid
+                    && validateTransactions(transactions)
+                    && !hasDuplicatedTransactions(transactions)
+            ) {
                 auditResponses.add(res);
             } else {
                 resCol.responses.remove(sName);
             }
         });
+
+        if (auditResponses.isEmpty())
+            throw new DefaultErrorException();
 
         return auditResponses.get(0);
     }
@@ -328,6 +370,38 @@ public class ClientServerFrontend implements Closeable {
             System.out.println("Request dropped.\nResending...");
 
         throw sre;
+    }
+
+
+    private boolean hasDuplicatedTransactions(List<Transaction> t) {
+        if(t.size() != 0 && t.size() != 1)
+            return t.stream().map(Transaction::getSignature).distinct().count() == t.size();
+
+        return false;
+    }
+
+    private boolean validateTransactions(List<Transaction> transactions) {
+
+        for (Transaction transaction : transactions) {
+
+            int amount = transaction.getAmount();
+            String senderName = transaction.getSenderUsername();
+            String receiverName = transaction.getReceiverUsername();
+            PublicKey senderKey = crypto.bytesToKey(transaction.getSenderKey());
+            PublicKey receiverKey = crypto.bytesToKey(transaction.getReceiverKey());
+            int wid = transaction.getWid();
+            byte[] newSignature = crypto.byteStringToByteArray(transaction.getSignature());
+
+            String newMessage = amount + senderName + receiverName + senderKey + receiverKey + wid;
+
+            System.out.println(Arrays.toString(newSignature));
+
+            if(!crypto.validateMessage(senderKey, newMessage, newSignature))
+                return false;
+
+        }
+
+        return true;
     }
 
     private String exceptionsHandler(ResponseCollector exceptions, long nonce) {

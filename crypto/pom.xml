@@ -46,14 +46,14 @@
 
 		<sourceDirectory>src/main/java</sourceDirectory>
 		<plugins>
-			<!--  Plugin Used to Compile the Sources of the Project  -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.8.1</version>
+				<artifactId>maven-resources-plugin</artifactId>
+				<version>${version.maven-resources-plugin}</version>
 				<configuration>
-					<source>15</source>
-					<target>15</target>
+					<nonFilteredFileExtensions>
+						<nonFilteredFileExtension>jks</nonFilteredFileExtension>
+					</nonFilteredFileExtensions>
 				</configuration>
 			</plugin>
 		</plugins>

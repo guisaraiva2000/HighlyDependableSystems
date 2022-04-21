@@ -7,20 +7,30 @@ import java.util.LinkedList;
 public class User implements Serializable {
 
     private final PublicKey pubKey;
+    private final String username;
+    private int wid;
+    //private int rid;
+    private byte[] pairSignature;
     private int balance;
-    private int pendentAmount;
     private LinkedList<Transfer> totalTransfers = new LinkedList<>(); // transfer = (key, amount)
     private LinkedList<Transfer> pendingTransfers = new LinkedList<>();
     private NonceManager nonceManager = new NonceManager();
 
 
-    public User(PublicKey pubKey, int balance) {
+    public User(PublicKey pubKey, String username, int wid, int balance, byte[] pairSignature) {
         this.pubKey = pubKey;
+        this.username = username;
+        this.wid = wid;
         this.balance = balance;
+        this.pairSignature = pairSignature;
     }
 
     public PublicKey getPubKey() {
         return pubKey;
+    }
+
+    public String getUsername() {
+        return username;
     }
 
     public int getBalance() {
@@ -31,12 +41,20 @@ public class User implements Serializable {
         this.balance = balance;
     }
 
-    public int getPendentAmount() {
-        return pendentAmount;
+    public int getWid() {
+        return wid;
     }
 
-    public void setPendentAmount(int pendentAmount) {
-        this.pendentAmount = pendentAmount;
+    public byte[] getPairSignature() {
+        return pairSignature;
+    }
+
+    public void setPairSignature(byte[] pairSignature) {
+        this.pairSignature = pairSignature;
+    }
+
+    public void setWid(int wid) {
+        this.wid = wid;
     }
 
     public LinkedList<Transfer> getTotalTransfers() {

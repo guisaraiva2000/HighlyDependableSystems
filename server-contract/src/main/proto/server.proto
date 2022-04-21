@@ -4,6 +4,17 @@
 syntax = "proto3";
 package pt.tecnico.bank.server.grpc;
 
+
+message Transaction {
+  int32 amount = 1;
+  string sender_username = 2;
+  string receiver_username = 3;
+  bytes sender_key = 4;
+  bytes receiver_key = 5;
+  int32 wid = 6;
+  bytes signature = 7;
+}
+
 message PingRequest {
   string input = 1;
 }
@@ -13,70 +24,108 @@ message PingResponse {
 }
 
 message OpenAccountRequest {
-  bytes public_key = 1;
-  bytes signature = 2;
+  string username = 1;
+  int32 init_wid = 2;
+  int32 init_balance = 3;
+  bytes pair_signature = 4; // (wid, balance)*
+  bytes public_key = 5;
+  bytes signature = 6;
 }
 
 message OpenAccountResponse {
-  bytes public_key = 1;
-  bytes signature = 2;
+  string username = 1;
+  bytes public_key = 2;
+  bytes signature = 3;
 }
 
+
 message SendAmountRequest {
-  bytes source_key = 1;
-  bytes destination_key = 2;
-  int32 amount = 3;
-  bytes signature = 4;
-  int64 nonce = 5;
-  int64 timestamp = 6;
+  Transaction transaction = 1;
+  int64 nonce = 2;
+  int64 timestamp = 3;
+
+  // regular
+  int32 balance = 4; // b = b - amount
+  bytes pair_signature = 5; // just for server to save
+
+  bytes signature = 6;
 }
 
 message SendAmountResponse {
   bytes public_key = 1;
   int64 nonce = 2;
-  bytes signature = 3;
+
+  int32 wid = 3; // check if equal to mine wid
+
+  //repeated bytes quorumAdeb;
+
+  bytes signature = 4;
 }
 
+
 message CheckAccountRequest {
-  bytes public_key = 1;
-  bytes client_key = 2;
+  bytes client_key = 1;
+  bytes check_key = 2;
   int64 nonce = 3;
   int64 timestamp = 4;
+
+  int32 rid = 5;
 }
 
 message CheckAccountResponse {
-  int32 balance = 1;
-  int32 pendent_amount = 2;
-  string pendent_transfers = 3;
-  bytes signature = 4;
-  int64 nonce = 5;
+  repeated Transaction pending_transactions = 1;
+  int64 nonce = 2;
+
+  int32 rid = 3;
+
+  int32 balance = 4;
+  int32 wid = 5;
+  bytes pair_signature = 6;
+
+  bytes signature = 7;
 }
 
+
 message ReceiveAmountRequest {
-  bytes public_key = 1;
-  bytes signature = 2;
+  repeated Transaction pending_transactions = 1;
+  bytes public_key = 2;
   int64 nonce = 3;
   int64 timestamp = 4;
+
+  int32 wid = 5;
+  int32 balance = 6; // b = b + amount
+  bytes pair_signature = 7; // just for server to save
+
+  bytes signature = 8;
+
 }
 
 message ReceiveAmountResponse {
-  int32 recv_amount = 1;
-  bytes public_key = 2;
-  int64 nonce = 3;
+  bytes public_key = 1;
+  int64 nonce = 2;
+
+  int32 wid = 3;
+
   bytes signature = 4;
 }
 
+
 message AuditRequest {
-  bytes public_key = 1;
-  bytes client_key = 2;
+  bytes client_key = 1;
+  bytes audit_key = 2;
   int64 nonce = 3;
   int64 timestamp = 4;
+
+  int32 rid = 5;
 }
 
 message AuditResponse {
-  string transfer_history = 1;
-  bytes signature = 2;
-  int64 nonce = 5;
+  repeated Transaction transactions = 1;
+  int64 nonce = 2;
+
+  int32 rid = 3;
+
+  bytes signature = 4;
 }
 
 message ErrorResponse {

@@ -36,7 +36,17 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void openAccount(OpenAccountRequest request, StreamObserver<OpenAccountResponse> responseObserver) {
         try {
 
-            responseObserver.onNext(serverBackend.openAccount(request.getPublicKey(), request.getSignature()));
+            responseObserver.onNext(
+                    serverBackend.openAccount(
+                            request.getUsername(),
+                            request.getInitWid(),
+                            request.getInitBalance(),
+                            request.getPairSignature(),
+                            request.getPublicKey(),
+                            request.getSignature()
+                    )
+            );
+
             responseObserver.onCompleted();
 
         } catch (ServerStatusRuntimeException e) {
@@ -48,14 +58,16 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public synchronized void sendAmount(SendAmountRequest request, StreamObserver<SendAmountResponse> responseObserver) {
         try {
 
-            responseObserver.onNext(serverBackend.sendAmount(
-                    request.getSourceKey(),
-                    request.getDestinationKey(),
-                    request.getAmount(),
-                    request.getNonce(),
-                    request.getTimestamp(),
-                    request.getSignature()
-            ));
+            responseObserver.onNext(
+                    serverBackend.sendAmount(
+                            request.getTransaction(),
+                            request.getNonce(),
+                            request.getTimestamp(),
+                            request.getBalance(),
+                            request.getPairSignature(),
+                            request.getSignature()
+                    )
+            );
 
             responseObserver.onCompleted();
 
@@ -68,7 +80,16 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void checkAccount(CheckAccountRequest request, StreamObserver<CheckAccountResponse> responseObserver) {
         try {
 
-            responseObserver.onNext(serverBackend.checkAccount(request.getPublicKey(), request.getNonce(), request.getTimestamp()));
+            responseObserver.onNext(
+                    serverBackend.checkAccount(
+                            request.getClientKey(),
+                            request.getCheckKey(),
+                            request.getNonce(),
+                            request.getTimestamp(),
+                            request.getRid()
+                    )
+            );
+
             responseObserver.onCompleted();
 
         } catch (ServerStatusRuntimeException e) {
@@ -80,12 +101,19 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public synchronized void receiveAmount(ReceiveAmountRequest request, StreamObserver<ReceiveAmountResponse> responseObserver) {
         try {
 
-            responseObserver.onNext(serverBackend.receiveAmount(
-                    request.getPublicKey(),
-                    request.getSignature(),
-                    request.getNonce(),
-                    request.getTimestamp())
+            responseObserver.onNext(
+                    serverBackend.receiveAmount(
+                            request.getPendingTransactionsList(),
+                            request.getPublicKey(),
+                            request.getNonce(),
+                            request.getTimestamp(),
+                            request.getWid(),
+                            request.getBalance(),
+                            request.getPairSignature(),
+                            request.getSignature()
+                    )
             );
+
             responseObserver.onCompleted();
 
         } catch (ServerStatusRuntimeException e) {
@@ -97,7 +125,15 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
     public void audit(AuditRequest request, StreamObserver<AuditResponse> responseObserver) {
         try {
 
-            responseObserver.onNext(serverBackend.audit(request.getPublicKey(), request.getNonce(), request.getTimestamp()));
+            responseObserver.onNext(
+                    serverBackend.audit(
+                            request.getClientKey(),
+                            request.getAuditKey(),
+                            request.getNonce(),
+                            request.getTimestamp(),
+                            request.getRid()
+                    )
+            );
             responseObserver.onCompleted();
 
         } catch (ServerStatusRuntimeException e) {
