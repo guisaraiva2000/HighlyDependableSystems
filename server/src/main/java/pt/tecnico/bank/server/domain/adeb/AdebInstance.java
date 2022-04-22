@@ -1,7 +1,12 @@
 package pt.tecnico.bank.server.domain.adeb;
 
+import com.google.protobuf.ByteString;
+import pt.tecnico.bank.server.grpc.Adeb;
+import pt.tecnico.bank.server.grpc.Server.AdebProof;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 public class AdebInstance {
@@ -15,6 +20,7 @@ public class AdebInstance {
     private boolean delivered = false;
     private final List<byte[]> echos = new ArrayList<>();
     private final List<byte[]> readys = new ArrayList<>();
+    private final List<AdebProof> adebProof = new ArrayList<>();
     private CountDownLatch latch;
 
     public AdebInstance(int nByzantineServers) {
@@ -83,6 +89,14 @@ public class AdebInstance {
 
     public void addReady(byte[] ready) {
         this.readys.add(ready);
+    }
+
+    public List<AdebProof> getAdebProof() {
+        return adebProof;
+    }
+
+    public void addAdebProof(AdebProof adebProof) {
+        this.adebProof.add(adebProof);
     }
 
     public CountDownLatch getLatch() {

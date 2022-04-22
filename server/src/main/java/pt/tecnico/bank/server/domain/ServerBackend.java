@@ -12,6 +12,7 @@ import pt.tecnico.bank.server.grpc.Adeb.ReadyRequest;
 import pt.tecnico.bank.server.grpc.Server.*;
 
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -104,11 +105,15 @@ public class ServerBackend implements Serializable {
         if (!crypto.validateMessage(senderKey, m, sig))
             throwError(INVALID_SIGNATURE, nonce + 1);
 
+        // ------------------------ ADEB ------------------------
+
         AdebInstance adebInstance = new AdebInstance(this.nByzantineServers);
 
         adebManager.addInstance(Arrays.toString(sig), adebInstance);
 
-        runAdeb(sig, adebInstance);   // ADEB!!!!
+        List<AdebProof> adebProofs = runAdeb(sig, adebInstance);
+
+        // ------------------------------------------------------
 
 
         User sourceUser = users.get(senderKey);
@@ -154,12 +159,13 @@ public class ServerBackend implements Serializable {
 
         stateManager.saveState(users);
 
-        String messageToSign = senderKey.toString() + (nonce + 1) + wid;
+        String messageToSign = senderKey.toString() + (nonce + 1) + wid + adebProofs;
 
         return SendAmountResponse.newBuilder()
                 .setPublicKey(ByteString.copyFrom(senderKey.getEncoded()))
                 .setNonce(nonce + 1)
                 .setWid(wid)
+                .addAllAdebProofs(adebProofs)
                 .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, messageToSign)))
                 .build();
 
@@ -215,11 +221,15 @@ public class ServerBackend implements Serializable {
             throwError(INVALID_SIGNATURE, nonce + 1);
 
 
+        // ------------------------ ADEB ------------------------
+
         AdebInstance adebInstance = new AdebInstance(this.nByzantineServers);
 
         adebManager.addInstance(Arrays.toString(sig), adebInstance);
 
-        runAdeb(sig, adebInstance);   // ADEB!!!!
+        List<AdebProof> adebProofs = runAdeb(sig, adebInstance);
+
+        // ------------------------------------------------------
 
 
         User user = users.get(pubKey);
@@ -258,17 +268,19 @@ public class ServerBackend implements Serializable {
 
         stateManager.saveState(users);
 
-        String newMessage = String.valueOf(pubKey) + (nonce + 1) + wid;
+        String newMessage = String.valueOf(pubKey) + (nonce + 1) + wid + adebProofs;
 
         return ReceiveAmountResponse.newBuilder()
                 .setPublicKey(ByteString.copyFrom(pubKey.getEncoded()))
                 .setNonce(nonce + 1)
                 .setWid(wid)
+                .addAllAdebProofs(adebProofs)
                 .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, newMessage)))
                 .build();
     }
 
-    public AuditResponse audit(ByteString clientKey, ByteString auditKeyy, long nonce, long timestamp, int rid)  {
+    public AuditResponse audit(ByteString clientKey, ByteString auditKeyy, long nonce, long timestamp, long pow, ByteString challenge, int rid)  {
+
         PublicKey cliKey = crypto.bytesToKey(clientKey);
         PublicKey auditKey = crypto.bytesToKey(auditKeyy);
 
@@ -276,6 +288,18 @@ public class ServerBackend implements Serializable {
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
 
         User user = users.get(cliKey);
+
+        // --------------------- Proof of work ---------------------
+
+       /* System.out.println("PROOF OF WORK: " + pow + " aaa " + Arrays.toString(user.getChallenge()));
+        if (!verifyProofOfWork(user.getChallenge(), pow))
+            throwError(INVALID_POW, nonce + 1);
+
+        user.setChallenge(null);  // reset challenge
+        users.put(cliKey, user);
+        stateManager.saveState(users);*/
+
+        // ----------------------------------------------------------
 
         if(!validateUserNonce(user, nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
@@ -289,6 +313,123 @@ public class ServerBackend implements Serializable {
                 .setNonce(nonce + 1)
                 .setRid(rid)
                 .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, messageToSign)))
+                .build();
+    }
+
+    public ProofOfWorkResponse generateProofOfWork(ByteString publicKey, long nonce, long timestamp, ByteString signature) {
+
+        PublicKey cliKey = crypto.bytesToKey(publicKey);
+
+        if (!(users.containsKey(cliKey)))
+            throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
+
+        User user = users.get(cliKey);
+
+        if(!validateUserNonce(user, nonce, timestamp))
+            throwError(INVALID_NONCE, nonce + 1);
+
+        String message = cliKey.toString() + nonce + timestamp;
+
+        byte[] sig = crypto.byteStringToByteArray(signature);
+
+        if (!crypto.validateMessage(cliKey, message, sig))
+            throwError(INVALID_SIGNATURE, nonce + 1);
+
+
+        byte[] array = new byte[7]; // length is bounded by 7
+        new Random().nextBytes(array);
+        String challenge = new String(array, StandardCharsets.UTF_8);
+
+        byte[] hashChallenge = crypto.encrypt(this.sName, challenge);
+
+        user.setChallenge(hashChallenge);
+        users.put(cliKey, user);
+        stateManager.saveState(users);
+
+
+        message = cliKey.toString() + (nonce + 1) + Arrays.toString(hashChallenge);
+
+        return ProofOfWorkResponse.newBuilder()
+                .setPublicKey(ByteString.copyFrom(cliKey.getEncoded()))
+                .setNonce(nonce + 1)
+                .setChallenge(ByteString.copyFrom(hashChallenge))
+                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, message)))
+                .build();
+    }
+
+    public CheckAccountWriteBackResponse checkAccountWriteBack(
+            ByteString clientKey, ByteString checkKey, long nonce, long timestamp, List<Transaction> pendingTransactions,
+            int balance, int wid, ByteString pairSign, ByteString signature
+    ) {
+
+        PublicKey cliKey = crypto.bytesToKey(clientKey);
+        PublicKey chKey = crypto.bytesToKey(checkKey);
+
+        if (!(users.containsKey(cliKey)) || !(users.containsKey(chKey)))
+            throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
+
+        if (!validateUserNonce(users.get(cliKey), nonce, timestamp))
+            throwError(INVALID_NONCE, nonce + 1);
+
+        String message = cliKey.toString() + chKey + nonce + timestamp + pendingTransactions
+                + balance + wid + Arrays.toString(crypto.byteStringToByteArray(pairSign));
+
+        byte[] sig = crypto.byteStringToByteArray(signature);
+
+        if (!crypto.validateMessage(cliKey, message, sig))
+            throwError(INVALID_SIGNATURE, nonce + 1);
+
+        User checkUser = users.get(chKey);
+
+        if (wid > checkUser.getWid()) {
+            checkUser.setBalance(balance);
+            checkUser.setWid(wid);
+            checkUser.setPairSignature(crypto.byteStringToByteArray(pairSign));
+            checkUser.setPendingTransfers(transactionsToTransfers(pendingTransactions));
+
+            users.put(chKey, checkUser);
+            stateManager.saveState(users);
+        }
+
+        return CheckAccountWriteBackResponse.newBuilder()
+                .setPublicKey(ByteString.copyFrom(cliKey.getEncoded()))
+                .setNonce(nonce + 1)
+                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, cliKey.toString() + (nonce + 1))))
+                .build();
+    }
+
+    public AuditWriteBackResponse auditWriteBack(
+            ByteString clientKey, ByteString auditKey, long nonce, long timestamp, List<Transaction> transactions, ByteString signature
+    ) {
+
+        PublicKey cliKey = crypto.bytesToKey(clientKey);
+        PublicKey chKey = crypto.bytesToKey(auditKey);
+
+        if (!(users.containsKey(cliKey)) || !(users.containsKey(chKey)))
+            throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
+
+        if (!validateUserNonce(users.get(cliKey), nonce, timestamp))
+            throwError(INVALID_NONCE, nonce + 1);
+
+        String message = cliKey.toString() + chKey + nonce + timestamp + transactions;
+
+        byte[] sig = crypto.byteStringToByteArray(signature);
+
+        if (!crypto.validateMessage(cliKey, message, sig))
+            throwError(INVALID_SIGNATURE, nonce + 1);
+
+        User checkUser = users.get(chKey);
+
+        checkUser.setPendingTransfers(transactionsToTransfers(transactions));
+
+        users.put(chKey, checkUser);
+        stateManager.saveState(users);
+
+
+        return AuditWriteBackResponse.newBuilder()
+                .setPublicKey(ByteString.copyFrom(cliKey.getEncoded()))
+                .setNonce(nonce + 1)
+                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, cliKey.toString() + (nonce + 1))))
                 .build();
     }
 
@@ -349,7 +490,7 @@ public class ServerBackend implements Serializable {
 
         byte[] inputByte = crypto.byteStringToByteArray(input);
 
-        doAdebVerifications(pubKeyString, sName, inputByte, nonce, ts, signature);
+        AdebProof adebProof = doAdebVerifications(pubKeyString, sName, inputByte, nonce, ts, signature);
 
         AdebInstance adebInstance = adebManager.getOrAddAdebInstance(Arrays.toString(inputByte));
 
@@ -357,6 +498,7 @@ public class ServerBackend implements Serializable {
 
             System.out.println("The ready input from server " + sName + " is the same as mine.");
 
+            adebInstance.addAdebProof(adebProof);
             adebInstance.addReady(inputByte);
         }
 
@@ -404,7 +546,9 @@ public class ServerBackend implements Serializable {
     }
 
 
-    private void runAdeb(byte[] clientInput, AdebInstance adebInstance) {
+    private List<AdebProof> runAdeb(byte[] clientInput, AdebInstance adebInstance) {
+
+        List<AdebProof> adebProof = new LinkedList<>();
 
         if (!adebInstance.isSentEcho()) {
 
@@ -436,9 +580,11 @@ public class ServerBackend implements Serializable {
             await(adebInstance.getLatch());
             System.out.println("ADEB ENDED!! All servers synchronized\n\n");
 
+            adebProof = adebInstance.getAdebProof();
             this.adebManager.removeAdebInstance(Arrays.toString(clientInput));
         }
 
+        return adebProof;
     }
 
     // ------------------------------------ AUX -------------------------------------
@@ -488,6 +634,26 @@ public class ServerBackend implements Serializable {
                 .build();
     }
 
+    private LinkedList<Transfer> transactionsToTransfers(List<Transaction> transactions) {
+
+        LinkedList<Transfer> transfers = new LinkedList<>();
+
+        for (Transaction transaction : transactions) {
+            transfers.add(new Transfer(
+                    transaction.getAmount(),
+                    transaction.getSenderUsername(),
+                    transaction.getReceiverUsername(),
+                    crypto.bytesToKey(transaction.getSenderKey()),
+                    crypto.bytesToKey(transaction.getReceiverKey()),
+                    transaction.getWid(),
+                    transaction.getSent(),
+                    crypto.byteStringToByteArray(transaction.getSignature())
+            ));
+        }
+
+        return transfers;
+    }
+
     private boolean validateUserNonce(User user, long nonce, long timestamp) {
         return user.getNonceManager().validateNonce(nonce, timestamp);
     }
@@ -496,7 +662,11 @@ public class ServerBackend implements Serializable {
         return this.nonceManager.validateNonce(nonce, timestamp);
     }
 
-    private void doAdebVerifications(ByteString pubKeyString, String sName, byte[] input, long nonce, long ts, ByteString signature) {
+    public boolean verifyProofOfWork(byte[] hash, long pow) {
+        return crypto.verifyProofOfWork(hash, pow);
+    }
+
+    private AdebProof doAdebVerifications(ByteString pubKeyString, String sName, byte[] input, long nonce, long ts, ByteString signature) {
         PublicKey pubKey = crypto.bytesToKey(pubKeyString);
 
         String newMessage = pubKey.toString() + sName + Arrays.toString(input) + nonce + ts;
@@ -508,6 +678,8 @@ public class ServerBackend implements Serializable {
 
         if (!validateServerNonce(nonce, ts))
             throwError(INVALID_NONCE, nonce + 1);
+
+        return AdebProof.newBuilder().setPublicKey(pubKeyString).setMessage(newMessage).setSignature(signature).build();
     }
 
 

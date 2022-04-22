@@ -131,7 +131,73 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
                             request.getAuditKey(),
                             request.getNonce(),
                             request.getTimestamp(),
+                            request.getPow(),
+                            request.getChallenge(),
                             request.getRid()
+                    )
+            );
+            responseObserver.onCompleted();
+
+        } catch (ServerStatusRuntimeException e) {
+            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException(e.getTrailers()));
+        }
+    }
+
+    @Override
+    public void checkAccountWriteBack(CheckAccountWriteBackRequest request, StreamObserver<CheckAccountWriteBackResponse> responseObserver) {
+        try {
+
+            responseObserver.onNext(
+                    serverBackend.checkAccountWriteBack(
+                            request.getClientKey(),
+                            request.getCheckKey(),
+                            request.getNonce(),
+                            request.getTimestamp(),
+                            request.getPendingTransactionsList(),
+                            request.getBalance(),
+                            request.getWid(),
+                            request.getPairSign(),
+                            request.getSignature()
+                    )
+            );
+            responseObserver.onCompleted();
+
+        } catch (ServerStatusRuntimeException e) {
+            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException(e.getTrailers()));
+        }
+    }
+
+    @Override
+    public void auditWriteBack(AuditWriteBackRequest request, StreamObserver<AuditWriteBackResponse> responseObserver) {
+        try {
+
+            responseObserver.onNext(
+                    serverBackend.auditWriteBack(
+                            request.getClientKey(),
+                            request.getAuditKey(),
+                            request.getNonce(),
+                            request.getTimestamp(),
+                            request.getTransactionsList(),
+                            request.getSignature()
+                    )
+            );
+            responseObserver.onCompleted();
+
+        } catch (ServerStatusRuntimeException e) {
+            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException(e.getTrailers()));
+        }
+    }
+
+    @Override
+    public void pow(ProofOfWorkRequest request, StreamObserver<ProofOfWorkResponse> responseObserver) {
+        try {
+
+            responseObserver.onNext(
+                    serverBackend.generateProofOfWork(
+                            request.getPublicKey(),
+                            request.getNonce(),
+                            request.getTimestamp(),
+                            request.getSignature()
                     )
             );
             responseObserver.onCompleted();

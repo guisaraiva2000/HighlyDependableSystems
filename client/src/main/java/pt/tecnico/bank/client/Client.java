@@ -104,8 +104,6 @@ public class Client {
             String transactionMessage = amount + this.username + receiverAccount + senderKey + receiverKey + widToSend + true;
             byte[] transactionSignature = crypto.encrypt(this.username, transactionMessage);
 
-            //System.out.println(transactionMessage);
-
             Transaction transaction = Transaction.newBuilder()
                     .setAmount(amount)
                     .setSenderUsername(this.username)
@@ -151,6 +149,31 @@ public class Client {
 
             this.rid++;
 
+            long nonce = crypto.generateNonce();
+            long timestamp = crypto.generateTimestamp();
+
+            PublicKey clientKey = crypto.getPublicKey(this.username);
+            PublicKey checkKey = crypto.getPublicKey(checkAccountName);
+
+            String message = clientKey.toString() + checkKey + nonce + timestamp + res.getPendingTransactionsList()
+                    + res.getBalance() + res.getWid() + Arrays.toString(crypto.byteStringToByteArray(res.getPairSignature()));
+
+            byte[] signature = crypto.encrypt(this.username, message);
+
+            CheckAccountWriteBackRequest req = CheckAccountWriteBackRequest.newBuilder()
+                    .setClientKey(ByteString.copyFrom(clientKey.getEncoded()))
+                    .setCheckKey(ByteString.copyFrom(checkKey.getEncoded()))
+                    .setNonce(nonce)
+                    .setTimestamp(timestamp)
+                    .addAllPendingTransactions(res.getPendingTransactionsList())
+                    .setBalance(res.getBalance())
+                    .setWid(res.getWid())
+                    .setPairSign(res.getPairSignature())
+                    .setSignature(ByteString.copyFrom(signature))
+                    .build();
+
+            frontend.checkAccountWriteBack(req);
+
             List<Transaction> pendingTransactions = res.getPendingTransactionsList();
             balance = res.getBalance();
 
@@ -158,7 +181,7 @@ public class Client {
 
             for (Transaction t : pendingTransactions)
                 transactionsToString
-                        .append("\n\t\t- User ")
+                        .append("\n\t\t- Client ")
                         .append(t.getSenderUsername())
                         .append(" sent ")
                         .append(t.getAmount())
@@ -194,11 +217,13 @@ public class Client {
                 return ANSI_GREEN + "No pending transactions.";
 
             int balance = res.getBalance();
-            int wid = res.getWid() + 1;
+            int wid = res.getWid();
 
             List<Transaction> transactions = new ArrayList<>();
 
             for (Transaction pending : pendingTransactions) { // receiver creates own transactions from the pending ones
+
+                wid++;
 
                 String transactionMessage =
                         pending.getAmount() + pending.getSenderUsername() + pending.getReceiverUsername()
@@ -219,7 +244,6 @@ public class Client {
                                 .setSignature(ByteString.copyFrom(transactionSignature))
                                 .build()
                 );
-                wid++;
             }
 
             for (Transaction pendingTransaction : pendingTransactions)
@@ -229,7 +253,6 @@ public class Client {
             long timestamp = crypto.generateTimestamp();
 
             int balanceToSend = balance + amountToReceive;
-            //int widToSend = wid + 1;
 
             byte[] pairSignature = crypto.encrypt(this.username,  String.valueOf(wid) + balanceToSend);
 
@@ -268,17 +291,49 @@ public class Client {
             PublicKey clientKey = crypto.getPublicKey(this.username);
             PublicKey auditKey = crypto.getPublicKey(checkAccountName);
 
-            if (auditKey == null) throw new AccountDoesNotExistsException();
+            if (auditKey == null || clientKey == null) throw new AccountDoesNotExistsException();
+
+            // --------------------- Proof of Work ---------------------
+
+            byte[] powChallenge = requestChallenge();
+
+            long pow = crypto.generateProofOfWork(powChallenge);
+
+            //System.out.println("PROOF OF WORK: " + pow + " aaa " + Arrays.toString(powChallenge));
+
+            // ---------------------------------------------------------
 
             AuditRequest req = AuditRequest.newBuilder()
                     .setClientKey(ByteString.copyFrom(clientKey.getEncoded()))
                     .setAuditKey(ByteString.copyFrom(auditKey.getEncoded()))
                     .setNonce(nonce)
                     .setTimestamp(timestamp)
+                    .setPow(pow)
                     .setRid(this.rid + 1)
                     .build();
 
             AuditResponse res = frontend.audit(req);
+
+
+            // Write-back
+            nonce = crypto.generateNonce();
+            timestamp = crypto.generateTimestamp();
+
+            String message = clientKey.toString() + auditKey + nonce + timestamp + res.getTransactionsList();
+
+            byte[] signature = crypto.encrypt(this.username, message);
+
+            AuditWriteBackRequest reqBack = AuditWriteBackRequest.newBuilder()
+                    .setClientKey(ByteString.copyFrom(clientKey.getEncoded()))
+                    .setAuditKey(ByteString.copyFrom(auditKey.getEncoded()))
+                    .setNonce(nonce)
+                    .setTimestamp(timestamp)
+                    .addAllTransactions(res.getTransactionsList())
+                    .setSignature(ByteString.copyFrom(signature))
+                    .build();
+
+            frontend.auditWriteBack(reqBack);
+
 
             List<Transaction> transactions = res.getTransactionsList();
 
@@ -295,7 +350,7 @@ public class Client {
                             .append(".");
                 } else {
                     transactionsToString
-                            .append("\n\t- User ")
+                            .append("\n\t- Client ")
                             .append(t.getSenderUsername())
                             .append(" sent ")
                             .append(t.getAmount())
@@ -310,6 +365,26 @@ public class Client {
         }
 
         return ANSI_GREEN + "Total transfers: " + transactionsToString;
+    }
+
+
+    public byte[] requestChallenge() {
+
+        PublicKey key = crypto.getPublicKey(this.username);
+
+        long nonce = crypto.generateNonce();
+        long timestamp = crypto.generateTimestamp();
+
+        byte[] signature = crypto.encrypt(this.username, key.toString() + nonce + timestamp);
+
+        ProofOfWorkRequest req = ProofOfWorkRequest.newBuilder()
+                .setPublicKey(ByteString.copyFrom(key.getEncoded()))
+                .setNonce(nonce)
+                .setTimestamp(timestamp)
+                .setSignature(ByteString.copyFrom(signature))
+                .build();
+
+        return crypto.byteStringToByteArray(frontend.proofOfWork(req).getChallenge());
     }
 
     private String handleError(StatusRuntimeException e) {

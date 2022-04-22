@@ -2,6 +2,7 @@ package pt.tecnico.bank.client.frontend;
 
 import io.grpc.stub.StreamObserver;
 
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 
 public class ClientObserver<R> implements StreamObserver<R> {
@@ -28,11 +29,13 @@ public class ClientObserver<R> implements StreamObserver<R> {
 
     @Override
     public void onError(Throwable throwable) {
-        //System.out.println("Received error: " + throwable);
-        if(this.exceptions != null) {
-            this.exceptions.addResponse(sName, throwable);
+        if (!Objects.equals(throwable.getMessage(), "UNAVAILABLE: io exception")) {
+
+            if (this.exceptions != null)
+                this.exceptions.addResponse(sName, throwable);
+
+            finishLatch.countDown();
         }
-        finishLatch.countDown();
     }
 
     @Override

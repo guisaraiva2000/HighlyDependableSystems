@@ -13,6 +13,7 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
 import java.io.*;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -31,6 +32,7 @@ public class Crypto {
     private final String password;
     private final String path;
     private final String certPath;
+    private final int proofWorkDifficulty;
 
     public Crypto(String alias, String password, boolean isClient) {
         this.alias = alias;
@@ -41,6 +43,8 @@ public class Crypto {
         String sep = File.separator;
         this.path =  ".." + sep + "Crypto" + sep + path + sep + alias + sep;
         this.certPath = ".." + sep + "Crypto" + sep + "Certificates" + sep;
+
+        this.proofWorkDifficulty = 2;
     }
 
 
@@ -250,4 +254,33 @@ public class Crypto {
     public long generateTimestamp() {
         return System.currentTimeMillis() / 1000;
     }
+
+
+    public long generateProofOfWork(byte[] bytes) {
+        long pow = 0L;
+        while (!verifyProofOfWork(bytes, pow)) pow++;
+        return pow;
+    }
+
+    public boolean verifyProofOfWork(byte[] bytes, long pow) {
+
+        try {
+
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+
+            byte[] hash = md.digest(ByteBuffer.allocate(bytes.length + Long.BYTES).put(bytes).putLong(pow).array());
+
+            for (int i = 0; i < this.proofWorkDifficulty; i++)
+                if (hash[i] != 0)
+                    return false;
+
+            return true;
+
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+
+        return false;
+    }
+
 }

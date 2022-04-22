@@ -11,6 +11,7 @@ public class User implements Serializable {
     private final String username;
     private int wid;
     //private int rid;
+    private byte[] challenge;
     private byte[] pairSignature;
     private int balance;
     private LinkedList<Transfer> totalTransfers = new LinkedList<>();    // transfer = (key, amount)
@@ -56,6 +57,14 @@ public class User implements Serializable {
 
     public void setWid(int wid) {
         this.wid = wid;
+    }
+
+    public byte[] getChallenge() {
+        return challenge;
+    }
+
+    public void setChallenge(byte[] challenge) {
+        this.challenge = challenge;
     }
 
     public LinkedList<Transfer> getTotalTransfers() {

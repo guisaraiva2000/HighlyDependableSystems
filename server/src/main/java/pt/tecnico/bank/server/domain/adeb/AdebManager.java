@@ -1,10 +1,10 @@
 package pt.tecnico.bank.server.domain.adeb;
 
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class AdebManager {
 
-    private final HashMap<String, AdebInstance> adebInstances = new HashMap<>();
+    private final ConcurrentHashMap<String, AdebInstance> adebInstances = new ConcurrentHashMap<>();
     private final int nByzantineServers;
 
     public AdebManager(int nByzantineServers) {
