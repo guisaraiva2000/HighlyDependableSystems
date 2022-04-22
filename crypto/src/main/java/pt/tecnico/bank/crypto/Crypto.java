@@ -41,8 +41,8 @@ public class Crypto {
         String path = isClient ? "Clients" : "Servers";
 
         String sep = File.separator;
-        this.path =  ".." + sep + "Crypto" + sep + path + sep + alias + sep;
-        this.certPath = ".." + sep + "Crypto" + sep + "Certificates" + sep;
+        this.path =  ".." + sep + "crypto" + sep + path + sep + alias + sep;
+        this.certPath = ".." + sep + "crypto" + sep + "Certificates" + sep;
 
         this.proofWorkDifficulty = 2;
     }
