@@ -35,32 +35,6 @@ public class ClientServerFrontend implements AutoCloseable {
     }
 
 
-    public PingResponse ping(PingRequest request) {
-
-        ResponseCollector resCol = new ResponseCollector();
-        ResponseCollector exceptions = new ResponseCollector();
-        CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
-
-        for (ServerServiceStub stub : this.stubs.values())
-            pingWorker(request, resCol, exceptions, finishLatch, stub);
-
-        await(finishLatch); // blocked until BQ
-
-        checkServerStatus(resCol, exceptions);
-
-        return null;
-    }
-
-    private void pingWorker(PingRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, ServerServiceStub stub) {
-        try {
-            stub.withDeadlineAfter(10, TimeUnit.SECONDS)
-                    .ping(request, new ClientObserver<>(resCol, exceptions, finishLatch, stub.getChannel().authority()));
-        } catch (StatusRuntimeException sre) {
-            exceptionHandler(sre);
-        }
-    }
-
-
     public OpenAccountResponse openAccount(OpenAccountRequest request) {
 
         ResponseCollector resCol = new ResponseCollector();
@@ -81,11 +55,14 @@ public class ClientServerFrontend implements AutoCloseable {
     }
 
     private void openAccountWorker(OpenAccountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
-        try {
-            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
-                    .openAccount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
-        } catch (StatusRuntimeException sre) {
-            exceptionHandler(sre);
+        while (true) {
+            try {
+                stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
+                        .openAccount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
+                break;
+            } catch (StatusRuntimeException sre) {
+                hasDroppedOrThrowException(sre);
+            }
         }
     }
 
@@ -103,11 +80,8 @@ public class ClientServerFrontend implements AutoCloseable {
 
             String message = username + pubKey.toString();
 
-            if (crypto.validateMessage(crypto.getPublicKey(sName), message, newSignature)) {
+            if (crypto.validateMessage(crypto.getPublicKey(sName), message, newSignature))
                 openAccountResponses.add(res);
-            } else {
-                resCol.responses.remove(sName);
-            }
         });
 
         if (openAccountResponses.isEmpty())
@@ -138,11 +112,14 @@ public class ClientServerFrontend implements AutoCloseable {
     }
 
     private void sendAmountWorker(SendAmountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
-        try {
-            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
-                    .sendAmount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
-        } catch (StatusRuntimeException sre) {
-            exceptionHandler(sre);
+        while (true) {
+            try {
+                stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
+                        .sendAmount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
+                break;
+            } catch (StatusRuntimeException sre) {
+                hasDroppedOrThrowException(sre);
+            }
         }
     }
 
@@ -156,20 +133,16 @@ public class ClientServerFrontend implements AutoCloseable {
             PublicKey pubKey = crypto.bytesToKey(res.getPublicKey());
             long newNonce = res.getNonce();
             int wid = res.getWid();
-            List<AdebProof> adebProofs = res.getAdebProofsList();
             byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
 
-            String newMessage = pubKey.toString() + newNonce + wid + adebProofs;
+            String newMessage = pubKey.toString() + newNonce + wid;
 
             if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature)
                     && nonce + 1 == newNonce
                     && wid == myWid
-                    && validateAdebProof(adebProofs)
-            ) {
+            )
                 sendAmountResponses.add(res);
-            } else {
-                resCol.responses.remove(sName);
-            }
+
         });
 
         if (sendAmountResponses.isEmpty())
@@ -199,11 +172,14 @@ public class ClientServerFrontend implements AutoCloseable {
     }
 
     private void checkAccountWorker(CheckAccountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
-        try {
-            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
-                    .checkAccount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
-        } catch (StatusRuntimeException sre) {
-            exceptionHandler(sre);
+        while (true) {
+            try {
+                stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
+                        .checkAccount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
+                break;
+            } catch (StatusRuntimeException sre) {
+                hasDroppedOrThrowException(sre);
+            }
         }
     }
 
@@ -218,27 +194,25 @@ public class ClientServerFrontend implements AutoCloseable {
 
             List<Transaction> pendingTransactions = res.getPendingTransactionsList();
             long newNonce = res.getNonce();
+            List<AdebProof> adebProofs = res.getAdebProofsList();
             int rid = res.getRid();
             int balance = res.getBalance();
             int wid = res.getWid();
             byte[] pairSig = crypto.byteStringToByteArray(res.getPairSignature());
             byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
 
-            String newMessage = pendingTransactions.toString() + newNonce + rid + balance + wid + Arrays.toString(pairSig);
+            String newMessage = pendingTransactions.toString() + newNonce + adebProofs + rid + balance + wid + Arrays.toString(pairSig);
 
             if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature)
                     && crypto.validateMessage(chKey, String.valueOf(wid) + balance, pairSig)
                     && nonce + 1 == newNonce
                     && myRid == rid
+                    && validateAdebProof(adebProofs, wid)
                     && validateTransactions(pendingTransactions, true)
                     && !hasDuplicatedTransactions(pendingTransactions)
-            ) {
-
+            )
                 checkAccountResponses.add(res);
 
-            } else {
-                resCol.responses.remove(sName);
-            }
         });
 
         if (checkAccountResponses.isEmpty())
@@ -268,11 +242,14 @@ public class ClientServerFrontend implements AutoCloseable {
     }
 
     private void receiveAmountWorker(ReceiveAmountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
-        try {
-            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
-                    .receiveAmount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
-        } catch (StatusRuntimeException sre) {
-            exceptionHandler(sre);
+        while (true) {
+            try {
+                stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
+                        .receiveAmount(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
+                break;
+            } catch (StatusRuntimeException sre) {
+                hasDroppedOrThrowException(sre);
+            }
         }
     }
 
@@ -286,23 +263,17 @@ public class ClientServerFrontend implements AutoCloseable {
             PublicKey pubKey = crypto.bytesToKey(res.getPublicKey());
             long newNonce = res.getNonce();
             int wid = res.getWid();
-            List<AdebProof> adebProofs = res.getAdebProofsList();
 
             byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
 
-            String newMessage = pubKey.toString() + newNonce + wid + adebProofs;
+            String newMessage = pubKey.toString() + newNonce + wid;
 
             if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature)
                     && nonce + 1 == newNonce
                     && wid == myWid
-                    && validateAdebProof(adebProofs)
-            ) {
-
+            )
                 receiveAmountResponses.add(res);
 
-            } else {
-                resCol.responses.remove(sName);
-            }
         });
 
         if (receiveAmountResponses.isEmpty())
@@ -312,7 +283,7 @@ public class ClientServerFrontend implements AutoCloseable {
     }
 
 
-    public ProofOfWorkResponse proofOfWork(ProofOfWorkRequest request) {
+    public List<ProofOfWorkResponse> proofOfWork(ProofOfWorkRequest request) {
 
         ResponseCollector resCol = new ResponseCollector();
         ResponseCollector exceptions = new ResponseCollector();
@@ -332,15 +303,18 @@ public class ClientServerFrontend implements AutoCloseable {
     }
 
     private void powWorker(ProofOfWorkRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
-        try {
-            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
-                    .pow(request, new ClientObserver<>(resCol, exceptions, finishLatch,sName));
-        } catch (StatusRuntimeException sre) {
-            exceptionHandler(sre);
+        while (true) {
+            try {
+                stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
+                        .pow(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
+                break;
+            } catch (StatusRuntimeException sre) {
+                hasDroppedOrThrowException(sre);
+            }
         }
     }
 
-    private ProofOfWorkResponse getProofOfWorkResponse(long nonce, ResponseCollector resCol) {
+    private List<ProofOfWorkResponse> getProofOfWorkResponse(long nonce, ResponseCollector resCol) {
         List<ProofOfWorkResponse> powResponses = new ArrayList<>();
 
         resCol.responses.keySet().forEach(sName -> {
@@ -349,25 +323,23 @@ public class ClientServerFrontend implements AutoCloseable {
 
             PublicKey key = crypto.bytesToKey(res.getPublicKey());
             long newNonce = res.getNonce();
+            String serverName = res.getServerName();
             byte[] challenge = crypto.byteStringToByteArray(res.getChallenge());
 
             byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
 
-            String newMessage = key.toString() + newNonce + Arrays.toString(challenge);
+            String newMessage = key.toString() + newNonce + serverName + Arrays.toString(challenge);
 
             if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature) && nonce + 1 == newNonce
-            ) {
+            )
                 powResponses.add(res);
 
-            } else {
-                resCol.responses.remove(sName);
-            }
         });
 
         if (powResponses.isEmpty())
             throw new DefaultErrorException();
 
-        return powResponses.get(0);
+        return powResponses;
     }
 
 
@@ -391,11 +363,14 @@ public class ClientServerFrontend implements AutoCloseable {
     }
 
     private void auditWorker(AuditRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
-        try {
-            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
-                    .audit(request, new ClientObserver<>(resCol, exceptions, finishLatch,sName));
-        } catch (StatusRuntimeException sre) {
-            exceptionHandler(sre);
+        while (true) {
+            try {
+                stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
+                        .audit(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
+                break;
+            } catch (StatusRuntimeException sre) {
+                hasDroppedOrThrowException(sre);
+            }
         }
     }
 
@@ -409,20 +384,21 @@ public class ClientServerFrontend implements AutoCloseable {
             List<Transaction> transactions = res.getTransactionsList();
             long newNonce = res.getNonce();
             int rid = res.getRid();
+            List<AdebProof> adebProofs = res.getAdebProofsList();
             byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
 
-            String newMessage = transactions.toString() + newNonce + rid;
+            String newMessage = transactions.toString() + newNonce + adebProofs + rid;
+
+            int wid = transactions.isEmpty() ? 0 : transactions.get(transactions.size() - 1).getWid();
 
             if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature)
                     && nonce + 1 == newNonce
                     && myRid == rid
+                    && validateAdebProof(adebProofs, wid)
                     && validateTransactions(transactions, false)
-            ) {
+            )
                 auditResponses.add(res);
 
-            } else {
-                resCol.responses.remove(sName);
-            }
         });
 
         if (auditResponses.isEmpty())
@@ -430,6 +406,7 @@ public class ClientServerFrontend implements AutoCloseable {
 
         return auditResponses.get(0);
     }
+
 
     public void checkAccountWriteBack(CheckAccountWriteBackRequest request) {
 
@@ -451,11 +428,14 @@ public class ClientServerFrontend implements AutoCloseable {
     }
 
     private void checkAccountWriteBackWorker(CheckAccountWriteBackRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
-        try {
-            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
-                    .checkAccountWriteBack(request, new ClientObserver<>(resCol, exceptions, finishLatch,sName));
-        } catch (StatusRuntimeException sre) {
-            exceptionHandler(sre);
+        while (true) {
+            try {
+                stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
+                        .checkAccountWriteBack(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
+                break;
+            } catch (StatusRuntimeException sre) {
+                hasDroppedOrThrowException(sre);
+            }
         }
     }
 
@@ -474,17 +454,15 @@ public class ClientServerFrontend implements AutoCloseable {
 
             if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature)
                     && nonce + 1 == newNonce
-            ) {
+            )
                 checkAccountWriteBackResponses.add(res);
 
-            } else {
-                resCol.responses.remove(sName);
-            }
         });
 
         if (checkAccountWriteBackResponses.isEmpty())
             throw new DefaultErrorException();
     }
+
 
     public void auditWriteBack(AuditWriteBackRequest request) {
 
@@ -506,11 +484,14 @@ public class ClientServerFrontend implements AutoCloseable {
     }
 
     private void auditWriteBackWorker(AuditWriteBackRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
-        try {
-            stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
-                    .auditWriteBack(request, new ClientObserver<>(resCol, exceptions, finishLatch,sName));
-        } catch (StatusRuntimeException sre) {
-            exceptionHandler(sre);
+        while (true) {
+            try {
+                stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
+                        .auditWriteBack(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
+                break;
+            } catch (StatusRuntimeException sre) {
+                hasDroppedOrThrowException(sre);
+            }
         }
     }
 
@@ -529,12 +510,9 @@ public class ClientServerFrontend implements AutoCloseable {
 
             if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature)
                     && nonce + 1 == newNonce
-            ) {
+            )
                 auditWriteBackResponses.add(res);
 
-            } else {
-                resCol.responses.remove(sName);
-            }
         });
 
         if (auditWriteBackResponses.isEmpty())
@@ -542,15 +520,74 @@ public class ClientServerFrontend implements AutoCloseable {
     }
 
 
+    public RidResponse getRid(RidRequest request) {
+
+        ResponseCollector resCol = new ResponseCollector();
+        ResponseCollector exceptions = new ResponseCollector();
+        CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
+
+        this.stubs.keySet().forEach( sName -> getRidWorker(request, resCol, exceptions, finishLatch, sName) );
+
+        await(finishLatch);
+
+        checkServerStatus(resCol, exceptions);
+
+        if (!exceptions.responses.isEmpty())
+            throw new StatusRuntimeException(Status.INTERNAL.withDescription(exceptionsHandler(exceptions, request.getNonce())));
+
+
+        return getRidResponse(request.getNonce(), resCol);
+    }
+
+    private void getRidWorker(RidRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
+        while (true) {
+            try {
+                stubs.get(sName).withDeadlineAfter(10, TimeUnit.SECONDS)
+                        .getRid(request, new ClientObserver<>(resCol, exceptions, finishLatch, sName));
+                break;
+            } catch (StatusRuntimeException sre) {
+                hasDroppedOrThrowException(sre);
+            }
+        }
+    }
+
+    private RidResponse getRidResponse(long nonce, ResponseCollector resCol) {
+        List<RidResponse> ridResponses = new ArrayList<>();
+
+        resCol.responses.keySet().forEach(sName -> {
+
+            RidResponse res = (RidResponse) resCol.responses.get(sName);
+
+            PublicKey key = crypto.bytesToKey(res.getPublicKey());
+            long newNonce = res.getNonce();
+            int rid = res.getRid();
+
+            byte[] newSignature = crypto.byteStringToByteArray(res.getSignature());
+
+            String newMessage = key.toString() + newNonce + rid;
+
+            if (crypto.validateMessage(crypto.getPublicKey(sName), newMessage, newSignature) && nonce + 1 == newNonce)
+                ridResponses.add(res);
+
+        });
+
+        if (ridResponses.isEmpty())
+            throw new DefaultErrorException();
+
+        return Collections.max(ridResponses, Comparator.comparing(RidResponse::getRid));
+
+    }
+
+
     // aux
-    private void exceptionHandler(StatusRuntimeException sre) {
+    private void hasDroppedOrThrowException(StatusRuntimeException sre) {
         if (sre.getStatus().getCode() == Status.DEADLINE_EXCEEDED.getCode())
             System.out.println("Request dropped.\nResending...");
 
         throw sre;
     }
 
-    private boolean validateAdebProof(List<AdebProof> adebProofs) {
+    private boolean validateAdebProof(List<AdebProof> adebProofs, int wid) {
 
         for (AdebProof adebProof : adebProofs) {
 
@@ -558,7 +595,7 @@ public class ClientServerFrontend implements AutoCloseable {
             String message = adebProof.getMessage();
             byte[] signature = crypto.byteStringToByteArray(adebProof.getSignature());
 
-            if (!crypto.validateMessage(publicKey, message, signature))
+            if (!crypto.validateMessage(publicKey, message, signature) && adebProof.getWid() != wid)
                 return false;
         }
 
@@ -668,6 +705,17 @@ public class ClientServerFrontend implements AutoCloseable {
 
     @Override
     public final void close() {
-        this.channels.forEach(ManagedChannel::shutdown);
+        //this.channels.forEach(ManagedChannel::shutdown);
+
+        for (ManagedChannel managedChannel : this.channels) {
+            managedChannel.shutdown();
+            try {
+                if (!managedChannel.awaitTermination(3500, TimeUnit.MILLISECONDS)) {
+                    managedChannel.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                managedChannel.shutdownNow();
+            }
+        }
     }
 }

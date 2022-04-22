@@ -19,15 +19,8 @@ message Transaction {
 message AdebProof {
   bytes public_key = 1;
   string message = 2;
-  bytes signature = 3;
-}
-
-message PingRequest {
-  string input = 1;
-}
-
-message PingResponse {
-  string output = 1;
+  int32 wid = 3;
+  bytes signature = 4;
 }
 
 message OpenAccountRequest {
@@ -62,9 +55,7 @@ message SendAmountResponse {
   bytes public_key = 1;
   int64 nonce = 2;
 
-  int32 wid = 3; // check if equal to mine wid
-
-  repeated AdebProof adebProofs = 4;
+  int32 wid = 3;
 
   bytes signature = 5;
 }
@@ -83,13 +74,15 @@ message CheckAccountResponse {
   repeated Transaction pending_transactions = 1;
   int64 nonce = 2;
 
-  int32 rid = 3;
+  repeated AdebProof adebProofs = 3;
 
-  int32 balance = 4;
-  int32 wid = 5;
-  bytes pair_signature = 6;
+  int32 rid = 4;
 
-  bytes signature = 7;
+  int32 balance = 5;
+  int32 wid = 6;
+  bytes pair_signature = 7;
+
+  bytes signature = 8;
 }
 
 
@@ -112,8 +105,6 @@ message ReceiveAmountResponse {
 
   int32 wid = 3;
 
-  repeated AdebProof adebProofs = 4;
-
   bytes signature = 5;
 }
 
@@ -124,8 +115,7 @@ message AuditRequest {
   int64 nonce = 3;
   int64 timestamp = 4;
 
-  int64 pow = 5;
-  bytes challenge = 6;
+  map<string, int64> pows = 5;  // <sName, pow>
 
   int32 rid = 7;
 }
@@ -134,9 +124,11 @@ message AuditResponse {
   repeated Transaction transactions = 1;
   int64 nonce = 2;
 
-  int32 rid = 3;
+  repeated AdebProof adebProofs = 3;
 
-  bytes signature = 4;
+  int32 rid = 4;
+
+  bytes signature = 5;
 }
 
 message CheckAccountWriteBackRequest {
@@ -168,7 +160,7 @@ message AuditWriteBackRequest {
 
   repeated Transaction transactions = 5;
 
-  bytes signature = 9;
+  bytes signature = 6;
 }
 
 message AuditWriteBackResponse {
@@ -187,23 +179,24 @@ message ProofOfWorkRequest {
 message ProofOfWorkResponse {
   bytes public_key = 1;
   int64 nonce = 2;
+  string server_name = 3;
 
-  bytes challenge = 3;
+  bytes challenge = 4;
 
-  bytes signature = 4;
+  bytes signature = 5;
 }
 
 message RidRequest {
   bytes public_key = 1;
-  int64 nonce = 3;
-  int64 timestamp = 4;
+  int64 nonce = 2;
+  int64 timestamp = 3;
+  bytes signature = 4;
 }
 
 message RidResponse {
   bytes public_key = 1;
   int64 nonce = 2;
   int32 rid = 3;
-
   bytes signature = 4;
 }
 
@@ -215,13 +208,17 @@ message ErrorResponse {
 }
 
 service ServerService {
-  rpc ping(PingRequest) returns (PingResponse);
+
   rpc openAccount(OpenAccountRequest) returns (OpenAccountResponse);
   rpc sendAmount(SendAmountRequest) returns (SendAmountResponse);
   rpc checkAccount(CheckAccountRequest) returns (CheckAccountResponse);
   rpc receiveAmount(ReceiveAmountRequest) returns (ReceiveAmountResponse);
   rpc audit(AuditRequest) returns (AuditResponse);
+
   rpc pow(ProofOfWorkRequest) returns (ProofOfWorkResponse);
+
   rpc checkAccountWriteBack(CheckAccountWriteBackRequest) returns (CheckAccountWriteBackResponse);
   rpc auditWriteBack(AuditWriteBackRequest) returns (AuditWriteBackResponse);
+
+  rpc getRid(RidRequest) returns (RidResponse);
 }

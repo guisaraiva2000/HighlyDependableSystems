@@ -17,20 +17,6 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
         this.serverBackend = serverBackend;
     }
 
-    @Override
-    public void ping(PingRequest request, StreamObserver<PingResponse> responseObserver) {
-        String input = request.getInput();
-
-        if (input.isBlank()) {
-            responseObserver.onError(INVALID_ARGUMENT.withDescription("Input cannot be empty!").asRuntimeException());
-            return;
-        }
-
-        String output = "OK: " + input;
-        PingResponse response = PingResponse.newBuilder().setOutput(output).build();
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
-    }
 
     @Override
     public void openAccount(OpenAccountRequest request, StreamObserver<OpenAccountResponse> responseObserver) {
@@ -131,8 +117,7 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
                             request.getAuditKey(),
                             request.getNonce(),
                             request.getTimestamp(),
-                            request.getPow(),
-                            request.getChallenge(),
+                            request.getPowsMap(),
                             request.getRid()
                     )
             );
@@ -207,4 +192,22 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
         }
     }
 
+    @Override
+    public void getRid(RidRequest request, StreamObserver<RidResponse> responseObserver) {
+        try {
+
+            responseObserver.onNext(
+                    serverBackend.getRid(
+                            request.getPublicKey(),
+                            request.getNonce(),
+                            request.getTimestamp(),
+                            request.getSignature()
+                    )
+            );
+            responseObserver.onCompleted();
+
+        } catch (ServerStatusRuntimeException e) {
+            responseObserver.onError(INTERNAL.withDescription(e.getMessage()).asRuntimeException(e.getTrailers()));
+        }
+    }
 }

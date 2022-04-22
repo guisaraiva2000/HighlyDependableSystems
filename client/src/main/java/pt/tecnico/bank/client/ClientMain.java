@@ -53,8 +53,10 @@ public class ClientMain {
                     System.out.println(ANSI_RED + "Wrong password!");
                 }
 
+                client = new Client(username, password, nByzantineServers);
+                client.get_rid();
+
                 while(loggedIn){
-                    client = new Client(username, password, nByzantineServers);
 
                     System.out.print(ANSI_YELLOW + "> ");
                     System.out.flush();
@@ -102,12 +104,10 @@ public class ClientMain {
                                     System.err.println(ANSI_RED + "ERROR: Usage: audit %account_name%");
                                 }
                                 break;
-                            case "ping":
-                                System.out.println(client.ping());
-                                break;
                             case "quit":
                                 loggedIn = false;
-                                username = "";
+                                System.out.println("Closing channels...");
+                                client.close();
                                 break;
                             default:
                                 System.err.println(ANSI_RED + "ERROR: Command not recognized!");

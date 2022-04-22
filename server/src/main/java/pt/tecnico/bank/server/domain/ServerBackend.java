@@ -5,6 +5,7 @@ import io.grpc.Status;
 import pt.tecnico.bank.crypto.Crypto;
 import pt.tecnico.bank.server.domain.adeb.AdebInstance;
 import pt.tecnico.bank.server.domain.adeb.AdebManager;
+import pt.tecnico.bank.server.domain.adeb.MyAdebProof;
 import pt.tecnico.bank.server.domain.exceptions.ErrorMessage;
 import pt.tecnico.bank.server.domain.exceptions.ServerStatusRuntimeException;
 import pt.tecnico.bank.server.grpc.Adeb.EchoRequest;
@@ -138,8 +139,8 @@ public class ServerBackend implements Serializable {
                 crypto.byteStringToByteArray(transaction.getSignature())
         );  // add to dest pending list
 
-        LinkedList<Transfer> totalTransfers = sourceUser.getTotalTransfers();
-        totalTransfers.add(new Transfer(
+        List<MyTransaction> totalTransfers = sourceUser.getTotalTransfers();
+        totalTransfers.add(new MyTransaction(
                     transaction.getAmount(),
                     transaction.getSenderUsername(),
                     transaction.getReceiverUsername(),
@@ -151,6 +152,9 @@ public class ServerBackend implements Serializable {
                 )
         );
 
+        List<MyAdebProof> myAdebProofs = convertToMyAdebProofs(adebProofs, wid);
+        sourceUser.setAdebProofs(myAdebProofs);
+
         sourceUser.setTotalTransfers(totalTransfers);
         sourceUser.setBalance(balance);
         sourceUser.setWid(wid);
@@ -159,13 +163,12 @@ public class ServerBackend implements Serializable {
 
         stateManager.saveState(users);
 
-        String messageToSign = senderKey.toString() + (nonce + 1) + wid + adebProofs;
+        String messageToSign = senderKey.toString() + (nonce + 1) + wid;
 
         return SendAmountResponse.newBuilder()
                 .setPublicKey(ByteString.copyFrom(senderKey.getEncoded()))
                 .setNonce(nonce + 1)
                 .setWid(wid)
-                .addAllAdebProofs(adebProofs)
                 .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, messageToSign)))
                 .build();
 
@@ -183,17 +186,26 @@ public class ServerBackend implements Serializable {
         if(!validateUserNonce(users.get(cliKey), nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
+        User user = users.get(cliKey);
+        user.setRid(rid);
+        users.put(cliKey, user);
+        stateManager.saveState(users);
+
         List<Transaction> pendingTransactions = getPendingTransactions(chKey);
 
         int wid = users.get(chKey).getWid();
         int currBalance = users.get(chKey).getBalance();
         byte[] pairSig = users.get(chKey).getPairSignature();
+        List<MyAdebProof> myAdebProofs = users.get(chKey).getAdebProofs();
 
-        String messageToSign = pendingTransactions.toString() + (nonce + 1) + rid + currBalance + wid + Arrays.toString(pairSig);
+        List<AdebProof> adebProofs = convertToAdebProofs(myAdebProofs);
+
+        String messageToSign = pendingTransactions.toString() + (nonce + 1) + adebProofs + rid + currBalance + wid + Arrays.toString(pairSig);
 
         return CheckAccountResponse.newBuilder()
                 .addAllPendingTransactions(pendingTransactions)
                 .setNonce(nonce + 1)
+                .addAllAdebProofs(adebProofs)
                 .setRid(rid)
                 .setBalance(currBalance)
                 .setWid(wid)
@@ -237,10 +249,10 @@ public class ServerBackend implements Serializable {
         if(!validateUserNonce(user, nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
-        LinkedList<Transfer> pendingTransactions = user.getPendingTransfers();
+        List<MyTransaction> pendingTransactions = user.getPendingTransfers();
         int amountToReceive = 0;
 
-        for (Transfer pendingTransaction : pendingTransactions)
+        for (MyTransaction pendingTransaction : pendingTransactions)
             amountToReceive += pendingTransaction.getAmount();
 
         if (!(wid > user.getWid() && balance == user.getBalance() + amountToReceive))
@@ -264,53 +276,62 @@ public class ServerBackend implements Serializable {
         user.setWid(wid);
         user.setPairSignature(pairSig);
 
+        List<MyAdebProof> myAdebProofs = convertToMyAdebProofs(adebProofs, wid);
+        user.setAdebProofs(myAdebProofs);
+
         users.put(pubKey, user); // update user
 
         stateManager.saveState(users);
 
-        String newMessage = String.valueOf(pubKey) + (nonce + 1) + wid + adebProofs;
+        String newMessage = String.valueOf(pubKey) + (nonce + 1) + wid;
 
         return ReceiveAmountResponse.newBuilder()
                 .setPublicKey(ByteString.copyFrom(pubKey.getEncoded()))
                 .setNonce(nonce + 1)
                 .setWid(wid)
-                .addAllAdebProofs(adebProofs)
                 .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, newMessage)))
                 .build();
     }
 
-    public AuditResponse audit(ByteString clientKey, ByteString auditKeyy, long nonce, long timestamp, long pow, ByteString challenge, int rid)  {
+    public AuditResponse audit(
+            ByteString clientKey, ByteString auditKey, long nonce, long timestamp, Map<String, Long> pows, int rid
+    )  {
 
         PublicKey cliKey = crypto.bytesToKey(clientKey);
-        PublicKey auditKey = crypto.bytesToKey(auditKeyy);
+        PublicKey auKey = crypto.bytesToKey(auditKey);
 
-        if (!(users.containsKey(cliKey)))
+        if (!(users.containsKey(cliKey)) || !(users.containsKey(auKey)))
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
 
-        User user = users.get(cliKey);
+        if(!validateUserNonce(users.get(cliKey), nonce, timestamp))
+            throwError(INVALID_NONCE, nonce + 1);
+
 
         // --------------------- Proof of work ---------------------
 
-       /* System.out.println("PROOF OF WORK: " + pow + " aaa " + Arrays.toString(user.getChallenge()));
-        if (!verifyProofOfWork(user.getChallenge(), pow))
+        User user = users.get(cliKey);
+
+        if (pows != null && pows.get(this.sName) != null && !verifyProofOfWork(user.getChallenge(), pows.get(this.sName)))
             throwError(INVALID_POW, nonce + 1);
 
         user.setChallenge(null);  // reset challenge
+        user.setRid(rid);
         users.put(cliKey, user);
-        stateManager.saveState(users);*/
+        stateManager.saveState(users);
 
         // ----------------------------------------------------------
 
-        if(!validateUserNonce(user, nonce, timestamp))
-            throwError(INVALID_NONCE, nonce + 1);
+        List<Transaction> transactions = getTotalTransactions(auKey);
+        List<MyAdebProof> myAdebProofs = users.get(auKey).getAdebProofs();
 
-        List<Transaction> transactions = getTotalTransactions(auditKey);
+        List<AdebProof> adebProofs = convertToAdebProofs(myAdebProofs);
 
-        String messageToSign = transactions.toString() + (nonce + 1) + rid;
+        String messageToSign = transactions.toString() + (nonce + 1) + adebProofs + rid;
 
         return AuditResponse.newBuilder()
                 .addAllTransactions(transactions)
                 .setNonce(nonce + 1)
+                .addAllAdebProofs(adebProofs)
                 .setRid(rid)
                 .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, messageToSign)))
                 .build();
@@ -347,11 +368,12 @@ public class ServerBackend implements Serializable {
         stateManager.saveState(users);
 
 
-        message = cliKey.toString() + (nonce + 1) + Arrays.toString(hashChallenge);
+        message = cliKey.toString() + (nonce + 1) + this.sName + Arrays.toString(hashChallenge);
 
         return ProofOfWorkResponse.newBuilder()
                 .setPublicKey(ByteString.copyFrom(cliKey.getEncoded()))
                 .setNonce(nonce + 1)
+                .setServerName(this.sName)
                 .setChallenge(ByteString.copyFrom(hashChallenge))
                 .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, message)))
                 .build();
@@ -403,26 +425,26 @@ public class ServerBackend implements Serializable {
     ) {
 
         PublicKey cliKey = crypto.bytesToKey(clientKey);
-        PublicKey chKey = crypto.bytesToKey(auditKey);
+        PublicKey auKey = crypto.bytesToKey(auditKey);
 
-        if (!(users.containsKey(cliKey)) || !(users.containsKey(chKey)))
+        if (!(users.containsKey(cliKey)) || !(users.containsKey(auKey)))
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
 
         if (!validateUserNonce(users.get(cliKey), nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
-        String message = cliKey.toString() + chKey + nonce + timestamp + transactions;
+        String message = cliKey.toString() + auKey + nonce + timestamp + transactions;
 
         byte[] sig = crypto.byteStringToByteArray(signature);
 
         if (!crypto.validateMessage(cliKey, message, sig))
             throwError(INVALID_SIGNATURE, nonce + 1);
 
-        User checkUser = users.get(chKey);
+        User checkUser = users.get(auKey);
 
-        checkUser.setPendingTransfers(transactionsToTransfers(transactions));
+        checkUser.setTotalTransfers(transactionsToTransfers(transactions));
 
-        users.put(chKey, checkUser);
+        users.put(auKey, checkUser);
         stateManager.saveState(users);
 
 
@@ -430,6 +452,37 @@ public class ServerBackend implements Serializable {
                 .setPublicKey(ByteString.copyFrom(cliKey.getEncoded()))
                 .setNonce(nonce + 1)
                 .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, cliKey.toString() + (nonce + 1))))
+                .build();
+    }
+
+    public RidResponse getRid(ByteString publicKey, long nonce, long timestamp, ByteString signature) {
+        PublicKey cliKey = crypto.bytesToKey(publicKey);
+
+        if (!(users.containsKey(cliKey)))
+            throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
+
+        User user = users.get(cliKey);
+
+        if(!validateUserNonce(user, nonce, timestamp))
+            throwError(INVALID_NONCE, nonce + 1);
+
+        String message = cliKey.toString() + nonce + timestamp;
+
+        byte[] sig = crypto.byteStringToByteArray(signature);
+
+        if (!crypto.validateMessage(cliKey, message, sig))
+            throwError(INVALID_SIGNATURE, nonce + 1);
+
+
+        int rid = user.getRid();
+
+        message = cliKey.toString() + (nonce + 1) + rid;
+
+        return RidResponse.newBuilder()
+                .setPublicKey(ByteString.copyFrom(cliKey.getEncoded()))
+                .setNonce(nonce + 1)
+                .setRid(rid)
+                .setSignature(ByteString.copyFrom(crypto.encrypt(this.sName, message)))
                 .build();
     }
 
@@ -548,7 +601,7 @@ public class ServerBackend implements Serializable {
 
     private List<AdebProof> runAdeb(byte[] clientInput, AdebInstance adebInstance) {
 
-        List<AdebProof> adebProof = new LinkedList<>();
+        List<AdebProof> adebProofs = new LinkedList<>();
 
         if (!adebInstance.isSentEcho()) {
 
@@ -580,11 +633,11 @@ public class ServerBackend implements Serializable {
             await(adebInstance.getLatch());
             System.out.println("ADEB ENDED!! All servers synchronized\n\n");
 
-            adebProof = adebInstance.getAdebProof();
+            adebProofs = adebInstance.getAdebProof();
             this.adebManager.removeAdebInstance(Arrays.toString(clientInput));
         }
 
-        return adebProof;
+        return adebProofs;
     }
 
     // ------------------------------------ AUX -------------------------------------
@@ -592,8 +645,8 @@ public class ServerBackend implements Serializable {
     private void transferAmount(int amount, String senderName, String receiverName, PublicKey sourceKey, PublicKey destKey, int  wid, boolean sent, byte[] signature) {
         User user = users.get(destKey);
 
-        LinkedList<Transfer> totalTransfers = user.getTotalTransfers();
-        totalTransfers.add(new Transfer(amount, senderName, receiverName, sourceKey, destKey, wid, sent, signature));
+        List<MyTransaction> totalTransfers = user.getTotalTransfers();
+        totalTransfers.add(new MyTransaction(amount, senderName, receiverName, sourceKey, destKey, wid, sent, signature));
 
         user.setTotalTransfers(totalTransfers);
         user.setBalance(user.getBalance() + amount);
@@ -602,9 +655,11 @@ public class ServerBackend implements Serializable {
 
     private void addPendingTransfer(int amount, String senderName, String receiverName, PublicKey sourceKey, PublicKey destKey, int wid, boolean sent, byte[] signature) {
         User user = users.get(destKey);
-        LinkedList<Transfer> destPendingTransfers = user.getPendingTransfers();
-        destPendingTransfers.add(new Transfer(amount, senderName, receiverName, sourceKey, destKey, wid, sent, signature)); // added to the dest pending transfers list
-        user.setPendingTransfers(destPendingTransfers);
+
+        List<MyTransaction> destPendingMyTransactions = user.getPendingTransfers();
+        destPendingMyTransactions.add(new MyTransaction(amount, senderName, receiverName, sourceKey, destKey, wid, sent, signature)); // added to the dest pending transfers list
+
+        user.setPendingTransfers(destPendingMyTransactions);
         users.put(destKey, user);
     }
 
@@ -621,7 +676,7 @@ public class ServerBackend implements Serializable {
         return transactions;
     }
 
-    private Transaction buildTransaction(Transfer transfer) {
+    private Transaction buildTransaction(MyTransaction transfer) {
         return Transaction.newBuilder()
                 .setAmount(transfer.getAmount())
                 .setSenderUsername(transfer.getSenderName())
@@ -634,12 +689,12 @@ public class ServerBackend implements Serializable {
                 .build();
     }
 
-    private LinkedList<Transfer> transactionsToTransfers(List<Transaction> transactions) {
+    private LinkedList<MyTransaction> transactionsToTransfers(List<Transaction> transactions) {
 
-        LinkedList<Transfer> transfers = new LinkedList<>();
+        LinkedList<MyTransaction> transfers = new LinkedList<>();
 
         for (Transaction transaction : transactions) {
-            transfers.add(new Transfer(
+            transfers.add(new MyTransaction(
                     transaction.getAmount(),
                     transaction.getSenderUsername(),
                     transaction.getReceiverUsername(),
@@ -652,6 +707,38 @@ public class ServerBackend implements Serializable {
         }
 
         return transfers;
+    }
+
+    private List<MyAdebProof> convertToMyAdebProofs(List<AdebProof> adebProofs, int wid) {
+        List<MyAdebProof> myAdebProofs = Collections.synchronizedList(new ArrayList<>());
+
+        for (AdebProof adebProof : adebProofs)
+            myAdebProofs.add(
+                    new MyAdebProof(
+                            crypto.bytesToKey(adebProof.getPublicKey()),
+                            adebProof.getMessage(),
+                            wid,
+                            crypto.byteStringToByteArray(adebProof.getSignature())
+                    )
+            );
+
+        return myAdebProofs;
+    }
+
+    private List<AdebProof> convertToAdebProofs(List<MyAdebProof> myAdebProofs) {
+        List<AdebProof> adebProofs = Collections.synchronizedList(new ArrayList<>());
+
+        for (MyAdebProof adebProof : myAdebProofs)
+            adebProofs.add(
+                    AdebProof.newBuilder()
+                            .setPublicKey(ByteString.copyFrom(adebProof.getServerKey().getEncoded()))
+                            .setMessage(adebProof.getMessage())
+                            .setWid(adebProof.getWid())
+                            .setSignature(ByteString.copyFrom(adebProof.getSignature()))
+                            .build()
+            );
+
+        return adebProofs;
     }
 
     private boolean validateUserNonce(User user, long nonce, long timestamp) {

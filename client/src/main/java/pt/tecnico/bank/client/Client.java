@@ -11,9 +11,7 @@ import pt.tecnico.bank.server.grpc.Server.*;
 
 import java.security.Key;
 import java.security.PublicKey;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public class Client {
 
@@ -32,16 +30,6 @@ public class Client {
         this.frontend = new ClientServerFrontend(nByzantineServers, this.crypto);
     }
 
-    public String ping() {
-        PingResponse res;
-        try {
-            PingRequest req = PingRequest.newBuilder().setInput("ola").build();
-            res = frontend.ping(req);
-        } catch (StatusRuntimeException e) {
-            return handleError(e);
-        }
-        return ANSI_GREEN + res.getOutput();
-    }
 
     public String open_account() {
         try {
@@ -145,48 +133,16 @@ public class Client {
         int balance;
 
         try {
+
             CheckAccountResponse res = getCheckAccountResponse(checkAccountName);
 
             this.rid++;
 
-            long nonce = crypto.generateNonce();
-            long timestamp = crypto.generateTimestamp();
+            checkAccountWriteBack(checkAccountName, res);
 
-            PublicKey clientKey = crypto.getPublicKey(this.username);
-            PublicKey checkKey = crypto.getPublicKey(checkAccountName);
-
-            String message = clientKey.toString() + checkKey + nonce + timestamp + res.getPendingTransactionsList()
-                    + res.getBalance() + res.getWid() + Arrays.toString(crypto.byteStringToByteArray(res.getPairSignature()));
-
-            byte[] signature = crypto.encrypt(this.username, message);
-
-            CheckAccountWriteBackRequest req = CheckAccountWriteBackRequest.newBuilder()
-                    .setClientKey(ByteString.copyFrom(clientKey.getEncoded()))
-                    .setCheckKey(ByteString.copyFrom(checkKey.getEncoded()))
-                    .setNonce(nonce)
-                    .setTimestamp(timestamp)
-                    .addAllPendingTransactions(res.getPendingTransactionsList())
-                    .setBalance(res.getBalance())
-                    .setWid(res.getWid())
-                    .setPairSign(res.getPairSignature())
-                    .setSignature(ByteString.copyFrom(signature))
-                    .build();
-
-            frontend.checkAccountWriteBack(req);
-
-            List<Transaction> pendingTransactions = res.getPendingTransactionsList();
             balance = res.getBalance();
 
-            transactionsToString = new StringBuilder();
-
-            for (Transaction t : pendingTransactions)
-                transactionsToString
-                        .append("\n\t\t- Client ")
-                        .append(t.getSenderUsername())
-                        .append(" sent ")
-                        .append(t.getAmount())
-                        .append(" euros.");
-
+            transactionsToString = getPendingTransactionsToString(res);
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -295,11 +251,9 @@ public class Client {
 
             // --------------------- Proof of Work ---------------------
 
-            byte[] powChallenge = requestChallenge();
+            List<ProofOfWorkResponse> proofOfWorkResponse = requestChallenge();
 
-            long pow = crypto.generateProofOfWork(powChallenge);
-
-            //System.out.println("PROOF OF WORK: " + pow + " aaa " + Arrays.toString(powChallenge));
+            Map<String, Long> pows = generateProofOfWorks(proofOfWorkResponse);
 
             // ---------------------------------------------------------
 
@@ -308,7 +262,7 @@ public class Client {
                     .setAuditKey(ByteString.copyFrom(auditKey.getEncoded()))
                     .setNonce(nonce)
                     .setTimestamp(timestamp)
-                    .setPow(pow)
+                    .putAllPows(pows)
                     .setRid(this.rid + 1)
                     .build();
 
@@ -316,47 +270,10 @@ public class Client {
 
 
             // Write-back
-            nonce = crypto.generateNonce();
-            timestamp = crypto.generateTimestamp();
-
-            String message = clientKey.toString() + auditKey + nonce + timestamp + res.getTransactionsList();
-
-            byte[] signature = crypto.encrypt(this.username, message);
-
-            AuditWriteBackRequest reqBack = AuditWriteBackRequest.newBuilder()
-                    .setClientKey(ByteString.copyFrom(clientKey.getEncoded()))
-                    .setAuditKey(ByteString.copyFrom(auditKey.getEncoded()))
-                    .setNonce(nonce)
-                    .setTimestamp(timestamp)
-                    .addAllTransactions(res.getTransactionsList())
-                    .setSignature(ByteString.copyFrom(signature))
-                    .build();
-
-            frontend.auditWriteBack(reqBack);
+            auditWriteBack(clientKey, auditKey, res);
 
 
-            List<Transaction> transactions = res.getTransactionsList();
-
-            transactionsToString = new StringBuilder();
-
-            for (Transaction t : transactions) {
-                if (t.getSent()) {
-                    transactionsToString
-                            .append("\n\t- ")
-                            .append("You sent ")
-                            .append(t.getAmount())
-                            .append(" euros to ")
-                            .append(t.getReceiverUsername())
-                            .append(".");
-                } else {
-                    transactionsToString
-                            .append("\n\t- Client ")
-                            .append(t.getSenderUsername())
-                            .append(" sent ")
-                            .append(t.getAmount())
-                            .append(" euros.");
-                }
-            }
+            transactionsToString = getTransactionsToString(res);
 
         } catch (StatusRuntimeException e) {
             return handleError(e);
@@ -368,7 +285,99 @@ public class Client {
     }
 
 
-    public byte[] requestChallenge() {
+    public void get_rid() {
+
+        try {
+
+            PublicKey key = crypto.getPublicKey(this.username);
+
+            if (key == null) return;
+
+            long nonce = crypto.generateNonce();
+            long timestamp = crypto.generateTimestamp();
+
+            byte[] signature = crypto.encrypt(this.username, key.toString() + nonce + timestamp);
+
+            RidRequest req = RidRequest.newBuilder()
+                    .setPublicKey(ByteString.copyFrom(key.getEncoded()))
+                    .setNonce(nonce)
+                    .setTimestamp(timestamp)
+                    .setSignature(ByteString.copyFrom(signature))
+                    .build();
+
+            this.rid = frontend.getRid(req).getRid();
+
+            System.out.println("RID: " + this.rid);
+
+        } catch (StatusRuntimeException ignored) {
+        }
+
+    }
+
+
+    // aux
+
+    private StringBuilder getTransactionsToString(AuditResponse res) {
+        StringBuilder transactionsToString = new StringBuilder();
+        List<Transaction> transactions = res.getTransactionsList();
+
+        for (Transaction t : transactions) {
+            if (t.getSent()) {
+                transactionsToString
+                        .append("\n\t- ")
+                        .append("You sent ")
+                        .append(t.getAmount())
+                        .append(" euros to ")
+                        .append(t.getReceiverUsername())
+                        .append(".");
+            } else {
+                transactionsToString
+                        .append("\n\t- Client ")
+                        .append(t.getSenderUsername())
+                        .append(" sent ")
+                        .append(t.getAmount())
+                        .append(" euros.");
+            }
+        }
+        return transactionsToString;
+    }
+
+    private StringBuilder getPendingTransactionsToString(CheckAccountResponse res) {
+        StringBuilder transactionsToString = new StringBuilder();;
+        List<Transaction> pendingTransactions = res.getPendingTransactionsList();
+
+        for (Transaction t : pendingTransactions)
+            transactionsToString
+                    .append("\n\t\t- Client ")
+                    .append(t.getSenderUsername())
+                    .append(" sent ")
+                    .append(t.getAmount())
+                    .append(" euros.");
+        return transactionsToString;
+    }
+
+    private void auditWriteBack(PublicKey clientKey, PublicKey auditKey, AuditResponse res) {
+        long nonce = crypto.generateNonce();
+        long timestamp = crypto.generateTimestamp();
+
+        String message = clientKey.toString() + auditKey + nonce + timestamp + res.getTransactionsList();
+
+        byte[] signature = crypto.encrypt(this.username, message);
+
+        AuditWriteBackRequest reqBack = AuditWriteBackRequest.newBuilder()
+                .setClientKey(ByteString.copyFrom(clientKey.getEncoded()))
+                .setAuditKey(ByteString.copyFrom(auditKey.getEncoded()))
+                .setNonce(nonce)
+                .setTimestamp(timestamp)
+                .addAllTransactions(res.getTransactionsList())
+                .setSignature(ByteString.copyFrom(signature))
+                .build();
+
+        frontend.auditWriteBack(reqBack);
+    }
+
+
+    public List<ProofOfWorkResponse> requestChallenge() {
 
         PublicKey key = crypto.getPublicKey(this.username);
 
@@ -384,7 +393,23 @@ public class Client {
                 .setSignature(ByteString.copyFrom(signature))
                 .build();
 
-        return crypto.byteStringToByteArray(frontend.proofOfWork(req).getChallenge());
+        return frontend.proofOfWork(req);
+    }
+
+    private Map<String, Long> generateProofOfWorks(List<ProofOfWorkResponse> responses) {
+        Map<String, Long> challenges = new HashMap<>();
+
+        for (ProofOfWorkResponse res : responses) {
+
+            String sName = res.getServerName();
+            byte[] powChallenge = crypto.byteStringToByteArray(res.getChallenge());
+
+            long pow = crypto.generateProofOfWork(powChallenge);
+
+            challenges.put(sName, pow);
+        }
+
+        return challenges;
     }
 
     private String handleError(StatusRuntimeException e) {
@@ -393,6 +418,33 @@ public class Client {
         } else {
             return ANSI_RED + e.getStatus().getDescription();
         }
+    }
+
+    private void checkAccountWriteBack(String checkAccountName, CheckAccountResponse res) {
+        long nonce = crypto.generateNonce();
+        long timestamp = crypto.generateTimestamp();
+
+        PublicKey clientKey = crypto.getPublicKey(this.username);
+        PublicKey checkKey = crypto.getPublicKey(checkAccountName);
+
+        String message = clientKey.toString() + checkKey + nonce + timestamp + res.getPendingTransactionsList()
+                + res.getBalance() + res.getWid() + Arrays.toString(crypto.byteStringToByteArray(res.getPairSignature()));
+
+        byte[] signature = crypto.encrypt(this.username, message);
+
+        CheckAccountWriteBackRequest req = CheckAccountWriteBackRequest.newBuilder()
+                .setClientKey(ByteString.copyFrom(clientKey.getEncoded()))
+                .setCheckKey(ByteString.copyFrom(checkKey.getEncoded()))
+                .setNonce(nonce)
+                .setTimestamp(timestamp)
+                .addAllPendingTransactions(res.getPendingTransactionsList())
+                .setBalance(res.getBalance())
+                .setWid(res.getWid())
+                .setPairSign(res.getPairSignature())
+                .setSignature(ByteString.copyFrom(signature))
+                .build();
+
+        frontend.checkAccountWriteBack(req);
     }
 
     private CheckAccountResponse getCheckAccountResponse(String username) throws AccountDoesNotExistsException {

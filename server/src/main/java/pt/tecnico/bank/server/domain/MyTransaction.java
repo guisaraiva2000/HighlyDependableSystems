@@ -3,7 +3,7 @@ package pt.tecnico.bank.server.domain;
 import java.io.Serializable;
 import java.security.PublicKey;
 
-public class Transfer implements Serializable {
+public class MyTransaction implements Serializable {
 
     private final int amount;
     private final String senderName;
@@ -15,7 +15,7 @@ public class Transfer implements Serializable {
     private final boolean sent;
 
 
-    public Transfer(int amount, String senderName, String receiverName, PublicKey senderKey, PublicKey receiverKey, int wid, boolean sent, byte[] signature) {
+    public MyTransaction(int amount, String senderName, String receiverName, PublicKey senderKey, PublicKey receiverKey, int wid, boolean sent, byte[] signature) {
         this.amount = amount;
         this.senderName = senderName;
         this.receiverName = receiverName;
@@ -58,11 +58,4 @@ public class Transfer implements Serializable {
         return sent;
     }
 
-    /*@Override
-    public String toString() {
-        if (isPending)
-            return amount < 0 ? "- To send: " + (-amount) : "- To receive: " + amount;
-
-        return amount < 0 ? "- Sent: " + (-amount) : "- Received: " + amount;
-    }*/
 }
