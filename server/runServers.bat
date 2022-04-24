@@ -12,9 +12,6 @@ for /L %%i in (1,1, %N%) do (
     SET "serverID=%%i"
     set serverName=%serverName%!serverID!
 
-    cd storage/!serverName! || goto End1
-    del /f data.txt
-    cd ../..
 
     set CMD="mvn exec:java -DserverName=!serverName! -DserverPort=!serverPort! -DnByzantineServers=%nByzantineServers%"
     start cmd.exe /k !CMD!

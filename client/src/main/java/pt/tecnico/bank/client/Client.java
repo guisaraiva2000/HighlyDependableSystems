@@ -66,7 +66,7 @@ public class Client {
             return ANSI_RED + e.getMessage();
         }
 
-        return ANSI_GREEN + "Account with name " +  this.username + " created";
+        return ANSI_GREEN + "Account with name " + this.username + " created";
     }
 
     public String send_amount(String receiverAccount, int amount) {
@@ -212,7 +212,7 @@ public class Client {
 
             byte[] pairSignature = crypto.encrypt(this.username,  String.valueOf(wid) + balanceToSend);
 
-            String messageToSign = transactions + key.toString() + nonce + timestamp + wid + balanceToSend + Arrays.toString(pairSignature);
+            String m = transactions + key.toString() + nonce + timestamp + wid + balanceToSend + Arrays.toString(pairSignature);
 
             ReceiveAmountRequest req = ReceiveAmountRequest.newBuilder()
                     .addAllPendingTransactions(transactions)
@@ -222,7 +222,7 @@ public class Client {
                     .setWid(wid)
                     .setBalance(balanceToSend)
                     .setPairSignature(ByteString.copyFrom(pairSignature))
-                    .setSignature(ByteString.copyFrom(crypto.encrypt(this.username, messageToSign)))
+                    .setSignature(ByteString.copyFrom(crypto.encrypt(this.username, m)))
                     .build();
 
             frontend.receiveAmount(req);
@@ -257,6 +257,9 @@ public class Client {
 
             // ---------------------------------------------------------
 
+
+            String m = clientKey.toString() + auditKey + nonce + timestamp + pows + (this.rid + 1);
+
             AuditRequest req = AuditRequest.newBuilder()
                     .setClientKey(ByteString.copyFrom(clientKey.getEncoded()))
                     .setAuditKey(ByteString.copyFrom(auditKey.getEncoded()))
@@ -264,10 +267,12 @@ public class Client {
                     .setTimestamp(timestamp)
                     .putAllPows(pows)
                     .setRid(this.rid + 1)
+                    .setSignature(ByteString.copyFrom(crypto.encrypt(this.username, m)))
                     .build();
 
             AuditResponse res = frontend.audit(req);
 
+            this.rid++;
 
             // Write-back
             auditWriteBack(clientKey, auditKey, res);
@@ -281,7 +286,7 @@ public class Client {
             return ANSI_RED + e.getMessage();
         }
 
-        return ANSI_GREEN + "Total transfers: " + transactionsToString;
+        return ANSI_GREEN + "Total transactions: " + transactionsToString;
     }
 
 
@@ -306,8 +311,6 @@ public class Client {
                     .build();
 
             this.rid = frontend.getRid(req).getRid();
-
-            System.out.println("RID: " + this.rid);
 
         } catch (StatusRuntimeException ignored) {
         }
@@ -456,12 +459,15 @@ public class Client {
 
         if (key == null || clientKey == null) throw new AccountDoesNotExistsException();
 
+        String m = clientKey.toString() + key + nonce + timestamp + (this.rid + 1);
+
         CheckAccountRequest checkReq = CheckAccountRequest.newBuilder()
                 .setClientKey(ByteString.copyFrom(clientKey.getEncoded()))
                 .setCheckKey(ByteString.copyFrom(key.getEncoded()))
                 .setNonce(nonce)
                 .setTimestamp(timestamp)
                 .setRid(this.rid + 1)
+                .setSignature(ByteString.copyFrom(crypto.encrypt(this.username, m)))
                 .build();
 
         return frontend.checkAccount(checkReq);

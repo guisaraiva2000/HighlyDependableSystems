@@ -35,7 +35,7 @@ public class ClientServerFrontend implements AutoCloseable {
     }
 
 
-    public OpenAccountResponse openAccount(OpenAccountRequest request) {
+    public void openAccount(OpenAccountRequest request) {
 
         ResponseCollector resCol = new ResponseCollector();
         ResponseCollector exceptions = new ResponseCollector();
@@ -47,11 +47,11 @@ public class ClientServerFrontend implements AutoCloseable {
 
         checkServerStatus(resCol, exceptions);
 
-        if (!exceptions.responses.isEmpty()) {
+        if (exceptions.responses.size() == this.byzantineQuorum) {
             throw new StatusRuntimeException(Status.INTERNAL.withDescription(exceptionsHandler(exceptions, -1)));
         }
 
-        return getOpenAccountResponse(resCol);
+        getOpenAccountResponse(resCol);
     }
 
     private void openAccountWorker(OpenAccountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
@@ -66,7 +66,7 @@ public class ClientServerFrontend implements AutoCloseable {
         }
     }
 
-    private OpenAccountResponse getOpenAccountResponse(ResponseCollector resCol) {
+    private void getOpenAccountResponse(ResponseCollector resCol) {
         List<OpenAccountResponse> openAccountResponses = new ArrayList<>();
 
         resCol.responses.keySet().forEach(sName -> {
@@ -87,11 +87,10 @@ public class ClientServerFrontend implements AutoCloseable {
         if (openAccountResponses.isEmpty())
             throw new DefaultErrorException();
 
-        return openAccountResponses.get(0);
     }
 
 
-    public SendAmountResponse sendAmount(SendAmountRequest request) {
+    public void sendAmount(SendAmountRequest request) {
 
         ResponseCollector resCol = new ResponseCollector();
         ResponseCollector exceptions = new ResponseCollector();
@@ -103,11 +102,11 @@ public class ClientServerFrontend implements AutoCloseable {
 
         checkServerStatus(resCol, exceptions);
 
-        if (!exceptions.responses.isEmpty()) {
+        if (exceptions.responses.size() == this.byzantineQuorum) {
             throw new StatusRuntimeException(Status.INTERNAL.withDescription(exceptionsHandler(exceptions, request.getNonce())));
         }
 
-        return getSendAmountResponse(request.getNonce(), request.getTransaction().getWid(), resCol);
+        getSendAmountResponse(request.getNonce(), request.getTransaction().getWid(), resCol);
 
     }
 
@@ -123,7 +122,7 @@ public class ClientServerFrontend implements AutoCloseable {
         }
     }
 
-    private SendAmountResponse getSendAmountResponse(long nonce, int myWid, ResponseCollector resCol) {
+    private void getSendAmountResponse(long nonce, int myWid, ResponseCollector resCol) {
         List<SendAmountResponse> sendAmountResponses = new ArrayList<>();
 
         resCol.responses.keySet().forEach(sName -> {
@@ -147,8 +146,6 @@ public class ClientServerFrontend implements AutoCloseable {
 
         if (sendAmountResponses.isEmpty())
             throw new DefaultErrorException();
-
-        return sendAmountResponses.get(0);
     }
 
 
@@ -164,7 +161,7 @@ public class ClientServerFrontend implements AutoCloseable {
 
         checkServerStatus(resCol, exceptions);
 
-        if (!exceptions.responses.isEmpty()) {
+        if (exceptions.responses.size() == this.byzantineQuorum) {
             throw new StatusRuntimeException(Status.INTERNAL.withDescription(exceptionsHandler(exceptions, request.getNonce())));
         }
 
@@ -222,7 +219,7 @@ public class ClientServerFrontend implements AutoCloseable {
     }
 
 
-    public ReceiveAmountResponse receiveAmount(ReceiveAmountRequest request) {
+    public void receiveAmount(ReceiveAmountRequest request) {
 
         ResponseCollector resCol = new ResponseCollector();
         ResponseCollector exceptions = new ResponseCollector();
@@ -234,11 +231,11 @@ public class ClientServerFrontend implements AutoCloseable {
 
         checkServerStatus(resCol, exceptions);
 
-        if (!exceptions.responses.isEmpty()) {
+        if (exceptions.responses.size() == this.byzantineQuorum) {
             throw new StatusRuntimeException(Status.INTERNAL.withDescription(exceptionsHandler(exceptions, request.getNonce())));
         }
 
-        return getReceiveAmountResponse(request.getNonce(), request.getWid(), resCol);
+        getReceiveAmountResponse(request.getNonce(), request.getWid(), resCol);
     }
 
     private void receiveAmountWorker(ReceiveAmountRequest request, ResponseCollector resCol, ResponseCollector exceptions, CountDownLatch finishLatch, String sName) {
@@ -253,7 +250,7 @@ public class ClientServerFrontend implements AutoCloseable {
         }
     }
 
-    private ReceiveAmountResponse getReceiveAmountResponse(long nonce, int myWid, ResponseCollector resCol) {
+    private void getReceiveAmountResponse(long nonce, int myWid, ResponseCollector resCol) {
         List<ReceiveAmountResponse> receiveAmountResponses = new ArrayList<>();
 
         resCol.responses.keySet().forEach(sName -> {
@@ -279,7 +276,6 @@ public class ClientServerFrontend implements AutoCloseable {
         if (receiveAmountResponses.isEmpty())
             throw new DefaultErrorException();
 
-        return receiveAmountResponses.get(0);
     }
 
 
@@ -295,7 +291,7 @@ public class ClientServerFrontend implements AutoCloseable {
 
         checkServerStatus(resCol, exceptions);
 
-        if (!exceptions.responses.isEmpty())
+        if (exceptions.responses.size() == this.byzantineQuorum)
             throw new StatusRuntimeException(Status.INTERNAL.withDescription(exceptionsHandler(exceptions, request.getNonce())));
 
 
@@ -355,7 +351,7 @@ public class ClientServerFrontend implements AutoCloseable {
 
         checkServerStatus(resCol, exceptions);
 
-        if (!exceptions.responses.isEmpty()) {
+        if (exceptions.responses.size() == this.byzantineQuorum) {
             throw new StatusRuntimeException(Status.INTERNAL.withDescription(exceptionsHandler(exceptions, request.getNonce())));
         }
 
@@ -420,7 +416,7 @@ public class ClientServerFrontend implements AutoCloseable {
 
         checkServerStatus(resCol, exceptions);
 
-        if (!exceptions.responses.isEmpty()) {
+        if (exceptions.responses.size() == this.byzantineQuorum) {
             throw new StatusRuntimeException(Status.INTERNAL.withDescription(exceptionsHandler(exceptions, request.getNonce())));
         }
 
@@ -476,7 +472,7 @@ public class ClientServerFrontend implements AutoCloseable {
 
         checkServerStatus(resCol, exceptions);
 
-        if (!exceptions.responses.isEmpty()) {
+        if (exceptions.responses.size() == this.byzantineQuorum) {
             throw new StatusRuntimeException(Status.INTERNAL.withDescription(exceptionsHandler(exceptions, request.getNonce())));
         }
 
@@ -532,7 +528,7 @@ public class ClientServerFrontend implements AutoCloseable {
 
         checkServerStatus(resCol, exceptions);
 
-        if (!exceptions.responses.isEmpty())
+        if (exceptions.responses.size() == this.byzantineQuorum)
             throw new StatusRuntimeException(Status.INTERNAL.withDescription(exceptionsHandler(exceptions, request.getNonce())));
 
 
@@ -705,7 +701,6 @@ public class ClientServerFrontend implements AutoCloseable {
 
     @Override
     public final void close() {
-        //this.channels.forEach(ManagedChannel::shutdown);
 
         for (ManagedChannel managedChannel : this.channels) {
             managedChannel.shutdown();

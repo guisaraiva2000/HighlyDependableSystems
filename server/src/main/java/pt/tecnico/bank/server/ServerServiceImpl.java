@@ -72,7 +72,8 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
                             request.getCheckKey(),
                             request.getNonce(),
                             request.getTimestamp(),
-                            request.getRid()
+                            request.getRid(),
+                            request.getSignature()
                     )
             );
 
@@ -118,7 +119,8 @@ public class ServerServiceImpl extends ServerServiceGrpc.ServerServiceImplBase {
                             request.getNonce(),
                             request.getTimestamp(),
                             request.getPowsMap(),
-                            request.getRid()
+                            request.getRid(),
+                            request.getSignature()
                     )
             );
             responseObserver.onCompleted();

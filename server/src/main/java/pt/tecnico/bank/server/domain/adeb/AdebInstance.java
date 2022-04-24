@@ -1,12 +1,9 @@
 package pt.tecnico.bank.server.domain.adeb;
 
-import com.google.protobuf.ByteString;
-import pt.tecnico.bank.server.grpc.Adeb;
 import pt.tecnico.bank.server.grpc.Server.AdebProof;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 public class AdebInstance {

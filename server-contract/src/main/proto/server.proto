@@ -68,6 +68,8 @@ message CheckAccountRequest {
   int64 timestamp = 4;
 
   int32 rid = 5;
+
+  bytes signature = 6;
 }
 
 message CheckAccountResponse {
@@ -118,6 +120,8 @@ message AuditRequest {
   map<string, int64> pows = 5;  // <sName, pow>
 
   int32 rid = 7;
+
+  bytes signature = 8;
 }
 
 message AuditResponse {

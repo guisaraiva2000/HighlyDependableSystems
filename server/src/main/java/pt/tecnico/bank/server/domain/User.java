@@ -4,9 +4,8 @@ import pt.tecnico.bank.server.domain.adeb.MyAdebProof;
 
 import java.io.Serializable;
 import java.security.PublicKey;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class User implements Serializable {
 
@@ -14,13 +13,13 @@ public class User implements Serializable {
     private final String username;
     private int wid;
     private int rid;
-    private byte[] challenge;
     private byte[] pairSignature;
     private int balance;
-    private List<MyTransaction> totalTransfers = Collections.synchronizedList(new ArrayList<>());    // transfer = (key, amount)
+    private List<MyTransaction> totalTransactions = Collections.synchronizedList(new ArrayList<>());    // transaction = (key, amount)
     private List<MyTransaction> pendingMyTransactions = Collections.synchronizedList(new ArrayList<>());
     private List<MyAdebProof> adebProofs = Collections.synchronizedList(new ArrayList<>());
     private final NonceManager nonceManager = new NonceManager();
+    private ConcurrentHashMap<String, Long> challenges = new ConcurrentHashMap<>();
 
 
     public User(PublicKey pubKey, String username, int wid, int balance, byte[] pairSignature) {
@@ -71,28 +70,12 @@ public class User implements Serializable {
         this.pairSignature = pairSignature;
     }
 
-    public byte[] getChallenge() {
-        return challenge;
+    public List<MyTransaction> getTotalTransactions() {
+        return totalTransactions;
     }
 
-    public void setChallenge(byte[] challenge) {
-        this.challenge = challenge;
-    }
-
-    public List<MyTransaction> getTotalTransfers() {
-        return totalTransfers;
-    }
-
-    public void setTotalTransfers(List<MyTransaction> totalTransfers) {
-        this.totalTransfers = totalTransfers;
-    }
-
-    public List<MyTransaction> getPendingMyTransactions() {
-        return pendingMyTransactions;
-    }
-
-    public void setPendingMyTransactions(List<MyTransaction> pendingMyTransactions) {
-        this.pendingMyTransactions = pendingMyTransactions;
+    public void setTotalTransactions(List<MyTransaction> totalTransactions) {
+        this.totalTransactions = totalTransactions;
     }
 
     public List<MyAdebProof> getAdebProofs() {
@@ -103,11 +86,11 @@ public class User implements Serializable {
         this.adebProofs = adebProofs;
     }
 
-    public List<MyTransaction> getPendingTransfers() {
+    public List<MyTransaction> getPendingTransactions() {
         return pendingMyTransactions;
     }
 
-    public void setPendingTransfers(List<MyTransaction> pendingMyTransactions) {
+    public void setPendingTransactions(List<MyTransaction> pendingMyTransactions) {
         this.pendingMyTransactions = pendingMyTransactions;
     }
 
@@ -115,13 +98,21 @@ public class User implements Serializable {
         return nonceManager;
     }
 
+    public ConcurrentHashMap<String, Long> getChallenges() {
+        return challenges;
+    }
+
+    public void addChallenge(String challenge) {
+        this.challenges.put(challenge, System.currentTimeMillis() / 1000);
+    }
+
     @Override
     public String toString() {
         return "User{" +
                 "pubKey=" + pubKey +
                 ", balance=" + balance +
-                ", totalTransfers=" + totalTransfers +
-                ", pendingTransfers=" + pendingMyTransactions +
+                ", totalTransactions=" + totalTransactions +
+                ", pendingTransactions=" + pendingMyTransactions +
                 '}';
     }
 }
