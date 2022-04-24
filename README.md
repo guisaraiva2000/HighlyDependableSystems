@@ -1,6 +1,6 @@
 # T09-BFTB
 
-High Dependable Systems 2021-2022, 2nd semester project
+Highly Dependable Systems 2021-2022, 2nd semester project
 
 
 ## Authors
@@ -31,25 +31,32 @@ mvn -version
 
 To compile and install all modules:
 
-```
+```bash
 mvn clean install -DskipTests
 ```
 
-The integration tests are skipped because they require the servers to be running.
 
 ### Server
 
-To run the only replica, access the **_server_** folder and type:
+To run the servers, access the **_server_** folder and type:
+```bash
+.\runServers.bat <nByzantineServers>  
 ```
-mvn exec:java
+if you are on Windows, and if you are on Linux type:
+```bash
+chmod +777 runServers.bash 
+./runServers.bash <nByzantineServers>
 ```
-
+where _nByzantineServers_ is the number of byzantine faults that you want the system to support.
+We recommend a maximum of 2 faults.
 ### Client
 
 To perform the bank operations, access the **_client_** folder and run:
+```bash
+mvn exec:java -DnByzantineServers=<nByzantineServers>
 ```
-mvn exec:java
-```
+where _nByzantineServers_ is the same number of faults that you put on server command.
+
 Check Client's **_README.md_** for more information.
 
 ### Testing
