@@ -13,8 +13,6 @@ The integration tests verify the responses of the server to a set of requests.
 
 ## Instructions for using Maven
 
-You must start the servers first.
-
 To compile and run integration tests:
 
 ```

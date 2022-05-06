@@ -41,7 +41,7 @@ public class ClientServerFrontend implements AutoCloseable {
         ResponseCollector exceptions = new ResponseCollector();
         CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
-        this.stubs.keySet().forEach( sName -> openAccountWorker(request, resCol, exceptions, finishLatch, sName) );
+        this.stubs.keySet().forEach(sName -> openAccountWorker(request, resCol, exceptions, finishLatch, sName));
 
         await(finishLatch);
 
@@ -96,7 +96,7 @@ public class ClientServerFrontend implements AutoCloseable {
         ResponseCollector exceptions = new ResponseCollector();
         CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
-        this.stubs.keySet().forEach( sName -> sendAmountWorker(request, resCol, exceptions, finishLatch, sName) );
+        this.stubs.keySet().forEach(sName -> sendAmountWorker(request, resCol, exceptions, finishLatch, sName));
 
         await(finishLatch);
 
@@ -155,7 +155,7 @@ public class ClientServerFrontend implements AutoCloseable {
         ResponseCollector exceptions = new ResponseCollector();
         CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
-        this.stubs.keySet().forEach( sName -> checkAccountWorker(request, resCol, exceptions, finishLatch, sName) );
+        this.stubs.keySet().forEach(sName -> checkAccountWorker(request, resCol, exceptions, finishLatch, sName));
 
         await(finishLatch);
 
@@ -205,8 +205,7 @@ public class ClientServerFrontend implements AutoCloseable {
                     && nonce + 1 == newNonce
                     && myRid == rid
                     && validateAdebProof(adebProofs, wid)
-                    && validateTransactions(pendingTransactions, true)
-                    && !hasDuplicatedTransactions(pendingTransactions)
+                    && validateTransactions(pendingTransactions, wid, true)
             )
                 checkAccountResponses.add(res);
 
@@ -225,7 +224,7 @@ public class ClientServerFrontend implements AutoCloseable {
         ResponseCollector exceptions = new ResponseCollector();
         CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
-        this.stubs.keySet().forEach( sName -> receiveAmountWorker(request, resCol, exceptions, finishLatch, sName) );
+        this.stubs.keySet().forEach(sName -> receiveAmountWorker(request, resCol, exceptions, finishLatch, sName));
 
         await(finishLatch);
 
@@ -285,7 +284,7 @@ public class ClientServerFrontend implements AutoCloseable {
         ResponseCollector exceptions = new ResponseCollector();
         CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
-        this.stubs.keySet().forEach( sName -> powWorker(request, resCol, exceptions, finishLatch, sName) );
+        this.stubs.keySet().forEach(sName -> powWorker(request, resCol, exceptions, finishLatch, sName));
 
         await(finishLatch);
 
@@ -345,7 +344,7 @@ public class ClientServerFrontend implements AutoCloseable {
         ResponseCollector exceptions = new ResponseCollector();
         CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
-        this.stubs.keySet().forEach( sName -> auditWorker(request, resCol, exceptions, finishLatch, sName) );
+        this.stubs.keySet().forEach(sName -> auditWorker(request, resCol, exceptions, finishLatch, sName));
 
         await(finishLatch);
 
@@ -391,7 +390,7 @@ public class ClientServerFrontend implements AutoCloseable {
                     && nonce + 1 == newNonce
                     && myRid == rid
                     && validateAdebProof(adebProofs, wid)
-                    && validateTransactions(transactions, false)
+                    && validateTransactions(transactions, wid, false)
             )
                 auditResponses.add(res);
 
@@ -410,7 +409,7 @@ public class ClientServerFrontend implements AutoCloseable {
         ResponseCollector exceptions = new ResponseCollector();
         CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
-        this.stubs.keySet().forEach( sName -> checkAccountWriteBackWorker(request, resCol, exceptions, finishLatch, sName) );
+        this.stubs.keySet().forEach(sName -> checkAccountWriteBackWorker(request, resCol, exceptions, finishLatch, sName));
 
         await(finishLatch);
 
@@ -466,7 +465,7 @@ public class ClientServerFrontend implements AutoCloseable {
         ResponseCollector exceptions = new ResponseCollector();
         CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
-        this.stubs.keySet().forEach( sName -> auditWriteBackWorker(request, resCol, exceptions, finishLatch, sName) );
+        this.stubs.keySet().forEach(sName -> auditWriteBackWorker(request, resCol, exceptions, finishLatch, sName));
 
         await(finishLatch);
 
@@ -522,7 +521,7 @@ public class ClientServerFrontend implements AutoCloseable {
         ResponseCollector exceptions = new ResponseCollector();
         CountDownLatch finishLatch = new CountDownLatch(byzantineQuorum);
 
-        this.stubs.keySet().forEach( sName -> getRidWorker(request, resCol, exceptions, finishLatch, sName) );
+        this.stubs.keySet().forEach(sName -> getRidWorker(request, resCol, exceptions, finishLatch, sName));
 
         await(finishLatch);
 
@@ -595,24 +594,22 @@ public class ClientServerFrontend implements AutoCloseable {
                 return false;
         }
 
-        return true;
+        return !hasDuplicatedTransactions(adebProofs);
     }
 
-    private boolean hasDuplicatedTransactions(List<Transaction> t) {
+    private boolean hasDuplicatedTransactions(List<AdebProof> adebProofs) {
 
-        final Set<Transaction> setToReturn = new HashSet<>();
-        final Set<Transaction> set1 = new HashSet<>();
+        final Set<AdebProof> setToReturn = new HashSet<>();
+        final Set<AdebProof> set1 = new HashSet<>();
 
-        for (Transaction yourInt : t) {
-            if (!set1.add(yourInt)) {
-                setToReturn.add(yourInt);
-            }
-        }
+        for (AdebProof proof : adebProofs)
+            if (!set1.add(proof))
+                setToReturn.add(proof);
 
         return !setToReturn.isEmpty();
     }
 
-    private boolean validateTransactions(List<Transaction> transactions, boolean isPending) {
+    private boolean validateTransactions(List<Transaction> transactions, int wid, boolean isPending) {
 
         int checkWid = 1;
 
@@ -623,24 +620,24 @@ public class ClientServerFrontend implements AutoCloseable {
             String receiverName = transaction.getReceiverUsername();
             PublicKey senderKey = crypto.bytesToKey(transaction.getSenderKey());
             PublicKey receiverKey = crypto.bytesToKey(transaction.getReceiverKey());
-            int wid = transaction.getWid();
+            int transactionWid = transaction.getWid();
             boolean isSent = transaction.getSent();
             byte[] newSignature = crypto.byteStringToByteArray(transaction.getSignature());
 
-            String newMessage = amount + senderName + receiverName + senderKey + receiverKey + wid + isSent;
+            String newMessage = amount + senderName + receiverName + senderKey + receiverKey + transactionWid + isSent;
 
             PublicKey key = isSent ? senderKey : receiverKey;
 
             if (!crypto.validateMessage(key, newMessage, newSignature))
                 return false;
 
-            if (!isPending && checkWid != wid)
+            if (!isPending && checkWid != transactionWid)
                 return false;
 
             checkWid++;
         }
 
-        return true;
+        return wid == checkWid;
     }
 
     private String exceptionsHandler(ResponseCollector exceptions, long nonce) {
@@ -676,7 +673,7 @@ public class ClientServerFrontend implements AutoCloseable {
     }
 
     private void checkServerStatus(ResponseCollector resCol, ResponseCollector exceptions) {
-        if(resCol.responses.isEmpty() && exceptions.responses.isEmpty())  // server down
+        if (resCol.responses.isEmpty() && exceptions.responses.isEmpty())  // server down
             throw new StatusRuntimeException(Status.NOT_FOUND.augmentDescription("io exception"));
     }
 

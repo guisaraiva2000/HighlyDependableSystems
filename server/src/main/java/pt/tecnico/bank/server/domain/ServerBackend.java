@@ -51,7 +51,7 @@ public class ServerBackend implements Serializable {
         initServerKeys();
     }
 
-    public synchronized OpenAccountResponse openAccount (
+    public synchronized OpenAccountResponse openAccount(
             String username, int initWid, int initBalance, ByteString pairSignature, ByteString pubKey, ByteString signature
     ) {
 
@@ -91,13 +91,14 @@ public class ServerBackend implements Serializable {
         PublicKey senderKey = crypto.bytesToKey(transaction.getSenderKey());
         PublicKey receiverKey = crypto.bytesToKey(transaction.getReceiverKey());
 
-        if (senderKey.equals(receiverKey)) {
+        if (senderKey.equals(receiverKey))
             throwError(SAME_ACCOUNT, nonce + 1);
-        } else if (!(users.containsKey(senderKey) && users.containsKey(receiverKey))) {
+
+        if (!users.containsKey(senderKey) || !users.containsKey(receiverKey))
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
-        } else if (transaction.getAmount() < 0) {
+
+        if (transaction.getAmount() < 0)
             throwError(INVALID_BALANCE, nonce + 1);
-        }
 
         int wid = transaction.getWid();
         byte[] pairSig = crypto.byteStringToByteArray(pairSignature);
@@ -116,18 +117,14 @@ public class ServerBackend implements Serializable {
 
         // ------------------------ ADEB ------------------------
 
-        AdebInstance adebInstance = new AdebInstance(this.nByzantineServers);
-
-        adebManager.addInstance(Arrays.toString(sig), adebInstance);
-
-        List<AdebProof> adebProofs = runAdeb(sig, adebInstance);
+        List<AdebProof> adebProofs = runAdeb(sig);
 
         // ------------------------------------------------------
 
 
         User sourceUser = users.get(senderKey);
 
-        if(!validateUserNonce(sourceUser, nonce, timestamp))
+        if (!validateUserNonce(sourceUser, nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
         if (sourceUser.getBalance() < transaction.getAmount())
@@ -149,14 +146,14 @@ public class ServerBackend implements Serializable {
 
         List<MyTransaction> totalTransactions = sourceUser.getTotalTransactions();
         totalTransactions.add(new MyTransaction(
-                    transaction.getAmount(),
-                    transaction.getSenderUsername(),
-                    transaction.getReceiverUsername(),
-                    crypto.bytesToKey(transaction.getSenderKey()),
-                    crypto.bytesToKey(transaction.getReceiverKey()),
-                    transaction.getWid(),
-                    transaction.getSent(),
-                    crypto.byteStringToByteArray(transaction.getSignature())
+                        transaction.getAmount(),
+                        transaction.getSenderUsername(),
+                        transaction.getReceiverUsername(),
+                        crypto.bytesToKey(transaction.getSenderKey()),
+                        crypto.bytesToKey(transaction.getReceiverKey()),
+                        transaction.getWid(),
+                        transaction.getSent(),
+                        crypto.byteStringToByteArray(transaction.getSignature())
                 )
         );
 
@@ -188,10 +185,10 @@ public class ServerBackend implements Serializable {
         PublicKey cliKey = crypto.bytesToKey(clientKey);
         PublicKey chKey = crypto.bytesToKey(checkKey);
 
-        if (!(users.containsKey(cliKey)) || !(users.containsKey(chKey)))
+        if (!users.containsKey(cliKey) || !users.containsKey(chKey))
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
 
-        if(!validateUserNonce(users.get(cliKey), nonce, timestamp))
+        if (!validateUserNonce(users.get(cliKey), nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
         byte[] sig = crypto.byteStringToByteArray(signature);
@@ -238,7 +235,7 @@ public class ServerBackend implements Serializable {
 
         PublicKey pubKey = crypto.bytesToKey(publicKey);
 
-        if (!(users.containsKey(pubKey)))
+        if (!users.containsKey(pubKey))
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
 
         byte[] pairSig = crypto.byteStringToByteArray(pairSignature);
@@ -258,18 +255,14 @@ public class ServerBackend implements Serializable {
 
         // ------------------------ ADEB ------------------------
 
-        AdebInstance adebInstance = new AdebInstance(this.nByzantineServers);
-
-        adebManager.addInstance(Arrays.toString(sig), adebInstance);
-
-        List<AdebProof> adebProofs = runAdeb(sig, adebInstance);
+        List<AdebProof> adebProofs = runAdeb(sig);
 
         // ------------------------------------------------------
 
 
         User user = users.get(pubKey);
 
-        if(!validateUserNonce(user, nonce, timestamp))
+        if (!validateUserNonce(user, nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
         List<MyTransaction> pendingTransactions = user.getPendingTransactions();
@@ -278,7 +271,7 @@ public class ServerBackend implements Serializable {
         for (MyTransaction pendingTransaction : pendingTransactions)
             amountToReceive += pendingTransaction.getAmount();
 
-        if (!(wid > user.getWid() && balance == user.getBalance() + amountToReceive))
+        if (!(wid == user.getWid() + 1 && balance == user.getBalance() + amountToReceive))
             throwError(BYZANTINE_CLIENT, nonce + 1);
 
 
@@ -318,15 +311,15 @@ public class ServerBackend implements Serializable {
 
     public AuditResponse audit(
             ByteString clientKey, ByteString auditKey, long nonce, long timestamp, Map<String, Long> pows, int rid, ByteString signature
-    )  {
+    ) {
 
         PublicKey cliKey = crypto.bytesToKey(clientKey);
         PublicKey auKey = crypto.bytesToKey(auditKey);
 
-        if (!(users.containsKey(cliKey)) || !(users.containsKey(auKey)))
+        if (!users.containsKey(cliKey) || !users.containsKey(auKey))
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
 
-        if(!validateUserNonce(users.get(cliKey), nonce, timestamp))
+        if (!validateUserNonce(users.get(cliKey), nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
         byte[] sig = crypto.byteStringToByteArray(signature);
@@ -372,12 +365,12 @@ public class ServerBackend implements Serializable {
 
         PublicKey cliKey = crypto.bytesToKey(publicKey);
 
-        if (!(users.containsKey(cliKey)))
+        if (!users.containsKey(cliKey))
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
 
         User user = users.get(cliKey);
 
-        if(!validateUserNonce(user, nonce, timestamp))
+        if (!validateUserNonce(user, nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
         String message = cliKey.toString() + nonce + timestamp;
@@ -394,7 +387,7 @@ public class ServerBackend implements Serializable {
 
         byte[] hashChallenge = crypto.encrypt(this.sName, challenge);
 
-        user.addChallenge(challenge);
+        users.get(cliKey).addChallenge(challenge);
         stateManager.saveState(users);
 
 
@@ -417,7 +410,7 @@ public class ServerBackend implements Serializable {
         PublicKey cliKey = crypto.bytesToKey(clientKey);
         PublicKey chKey = crypto.bytesToKey(checkKey);
 
-        if (!(users.containsKey(cliKey)) || !(users.containsKey(chKey)))
+        if (!users.containsKey(cliKey) || !users.containsKey(chKey))
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
 
         if (!validateUserNonce(users.get(cliKey), nonce, timestamp))
@@ -439,17 +432,13 @@ public class ServerBackend implements Serializable {
 
         // ------------------------ ADEB ------------------------
 
-        AdebInstance adebInstance = new AdebInstance(this.nByzantineServers);
-
-        adebManager.addInstance(Arrays.toString(sig), adebInstance);
-
-        List<AdebProof> adebProofs = runAdeb(sig, adebInstance);
+        List<AdebProof> adebProofs = runAdeb(sig);
 
         // ------------------------------------------------------
 
         User checkUser = users.get(chKey);
 
-        if (wid > checkUser.getWid()) {
+        if (wid == checkUser.getWid() + 1) {
             checkUser.setBalance(balance);
             checkUser.setWid(wid);
             checkUser.setPairSignature(crypto.byteStringToByteArray(pairSign));
@@ -476,7 +465,7 @@ public class ServerBackend implements Serializable {
         PublicKey cliKey = crypto.bytesToKey(clientKey);
         PublicKey auKey = crypto.bytesToKey(auditKey);
 
-        if (!(users.containsKey(cliKey)) || !(users.containsKey(auKey)))
+        if (!users.containsKey(cliKey) || !users.containsKey(auKey))
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
 
         if (!validateUserNonce(users.get(cliKey), nonce, timestamp))
@@ -494,11 +483,7 @@ public class ServerBackend implements Serializable {
 
         // ------------------------ ADEB ------------------------
 
-        AdebInstance adebInstance = new AdebInstance(this.nByzantineServers);
-
-        adebManager.addInstance(Arrays.toString(sig), adebInstance);
-
-        List<AdebProof> adebProofs = runAdeb(sig, adebInstance);
+        List<AdebProof> adebProofs = runAdeb(sig);
 
         // ------------------------------------------------------
 
@@ -506,7 +491,7 @@ public class ServerBackend implements Serializable {
 
         int wid = transactions.isEmpty() ? 0 : transactions.get(transactions.size() - 1).getWid();
 
-        if (wid > users.get(cliKey).getWid()) {
+        if (wid == users.get(cliKey).getWid() + 1) {
 
             checkUser.setTotalTransactions(transactionsToTransactions(transactions));
 
@@ -528,12 +513,12 @@ public class ServerBackend implements Serializable {
     public RidResponse getRid(ByteString publicKey, long nonce, long timestamp, ByteString signature) {
         PublicKey cliKey = crypto.bytesToKey(publicKey);
 
-        if (!(users.containsKey(cliKey)))
+        if (!users.containsKey(cliKey))
             throwError(ACCOUNT_DOES_NOT_EXIST, nonce + 1);
 
         User user = users.get(cliKey);
 
-        if(!validateUserNonce(user, nonce, timestamp))
+        if (!validateUserNonce(user, nonce, timestamp))
             throwError(INVALID_NONCE, nonce + 1);
 
         String message = cliKey.toString() + nonce + timestamp;
@@ -668,9 +653,12 @@ public class ServerBackend implements Serializable {
     }
 
 
-    private List<AdebProof> runAdeb(byte[] clientInput, AdebInstance adebInstance) {
+    private List<AdebProof> runAdeb(byte[] clientInput) {
 
         List<AdebProof> adebProofs = new LinkedList<>();
+
+        AdebInstance adebInstance = new AdebInstance(this.nByzantineServers);
+        this.adebManager.addInstance(Arrays.toString(clientInput), adebInstance);
 
         if (!adebInstance.isSentEcho()) {
 
@@ -691,12 +679,12 @@ public class ServerBackend implements Serializable {
 
             adebInstance.getAdebFrontend().echo(
                     EchoRequest.newBuilder()
-                        .setInput(ByteString.copyFrom(clientInput))
-                        .setNonce(echoNonce)
-                        .setTimestamp(ts)
-                        .setSname(this.sName)
-                        .setKey(ByteString.copyFrom(pubKey.getEncoded()))
-                        .setSignature(ByteString.copyFrom(signature)).build()
+                            .setInput(ByteString.copyFrom(clientInput))
+                            .setNonce(echoNonce)
+                            .setTimestamp(ts)
+                            .setSname(this.sName)
+                            .setKey(ByteString.copyFrom(pubKey.getEncoded()))
+                            .setSignature(ByteString.copyFrom(signature)).build()
             );
 
             await(adebInstance.getLatch());
@@ -712,7 +700,7 @@ public class ServerBackend implements Serializable {
 
     // ------------------------------------ AUX -------------------------------------
 
-    private void transactionAmount(int amount, String senderName, String receiverName, PublicKey sourceKey, PublicKey destKey, int  wid, boolean sent, byte[] signature) {
+    private void transactionAmount(int amount, String senderName, String receiverName, PublicKey sourceKey, PublicKey destKey, int wid, boolean sent, byte[] signature) {
         User user = users.get(destKey);
 
         List<MyTransaction> totalTransactions = user.getTotalTransactions();
@@ -873,7 +861,7 @@ public class ServerBackend implements Serializable {
 
         byte[] sig = crypto.byteStringToByteArray(signature);
 
-        if  (!crypto.validateMessage(pubKey, newMessage, sig))
+        if (!crypto.validateMessage(pubKey, newMessage, sig))
             throwError(INVALID_SIGNATURE, nonce + 1);
 
         if (!validateServerNonce(nonce, ts))

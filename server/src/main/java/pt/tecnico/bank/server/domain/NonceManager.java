@@ -8,7 +8,7 @@ public class NonceManager implements Serializable {
     /**
      * Contains all the nonces that were used inside the validity window sorted by timestamp.
      */
-    static final List<NonceEntry> nonces = new ArrayList<>();
+    static final List<NonceEntry> nonces = Collections.synchronizedList(new ArrayList<>());
 
     private volatile long lastCleaned = 0;
 
